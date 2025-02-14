@@ -12,4 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""TODO(mononito): Yandex benchmark - WIP."""
+"""Interface for models."""
+
+from typing import Protocol
+
+
+class ModelInterface(Protocol):
+  """Interface for models."""
+
+  def fit(self, x, y, **kwargs):
+    raise NotImplementedError()
+
+  def predict_proba(self, x, y, **kwargs):
+    raise NotImplementedError()

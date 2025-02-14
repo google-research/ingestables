@@ -24,10 +24,16 @@ Then install the requirements:
 
 ```shell
 python3 -m pip install --upgrade pip
-python3 -m pip install torch --index-url https://download.pytorch.org/whl/cpu
-cd third_party/py/ingestables/torch
+git clone ...
+cd ingestables
 python3 -m pip install -e .
-
 ```
 
 You now have a virtual environment that contains the dependencies!
+
+#### Running tests
+
+```shell
+python3 -m pip install -e .[dev]
+python3 -m pytest --pyargs ingestables
+```

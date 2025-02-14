@@ -31,3 +31,27 @@ class Concatenate(nn.Module):
   ) -> torch.Tensor:
     """Concatenate."""
     return torch.cat((z_key_emb, z_val_emb), dim=-1)
+
+
+class Add(nn.Module):
+  """Add."""
+
+  def forward(
+      self,
+      z_key_emb: torch.Tensor,
+      z_val_emb: torch.Tensor,
+  ) -> torch.Tensor:
+    """Add."""
+    return z_key_emb + z_val_emb
+
+
+class Scale(nn.Module):
+  """Scale."""
+
+  def forward(
+      self,
+      z_key_emb: torch.Tensor,
+      z_val_emb: torch.Tensor,
+  ) -> torch.Tensor:
+    """Add."""
+    return z_key_emb * z_val_emb

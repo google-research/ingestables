@@ -21,35 +21,66 @@ so that it can be stacked with other features. These aligners define how each
 modality is to be projected to a common shape.
 """
 
-import dataclasses
+from typing import Literal, Optional
 
+from ingestables.torch.model.lib import categorical_embeddings as catlib
+from ingestables.torch.model.lib import numerical_embeddings as numlib
 import torch
 from torch import nn
 
 
-@dataclasses.dataclass
-class CatAlignerConfig:
-  x_key_dim: int  # Input dimension.
-  x_val_dim: int  # Input dimension.
-  z_key_dim: int  # Hidden dimension.
-  z_val_dim: int  # Hidden dimension.
+class TextualAligner(nn.Module):
+  """Alignment module to pass categorical and string features to ingestables encoder."""
 
+  def __init__(
+      self,
+      x_key_dim: int,
+      x_val_dim: int,
+      z_key_dim: int,
+      z_val_dim: int,
+      key_aligner: Literal["simple"] = "simple",
+      key_bias: bool = False,
+      key_activation_fn: Optional[str] = "relu",
+      val_aligner: Literal["simple"] = "simple",
+      val_bias: bool = False,
+      val_activation_fn: Optional[str] = "relu",
+  ):
+    """Initialize aligner for textual features.
 
-class CatAligner(nn.Module):
-  """Alignment module to pass categorical features to ingestables.Encoder."""
+    Keys are the feature names, and vals are the feature values. For categorical
+    and string features, both keys and values are textual.
 
-  def __init__(self, config: CatAlignerConfig):
+    Args:
+      x_key_dim: Input dimensions of feature keys.
+      x_val_dim: Input dimensions of feature values.
+      z_key_dim: Output dimensions of feature keys.
+      z_val_dim: Output dimensions of feature values.
+      key_aligner: Type of key aligner to use. Currently only "simple" is
+        supported.
+      key_bias: Whether to add a bias to the key aligner.
+      key_activation_fn: Activation function to use for key aligner.
+      val_aligner: Type of value aligner to use. Currently only "simple" is
+        supported.
+      val_bias: Whether to add a bias to the value aligner.
+      val_activation_fn: Activation function to use for value aligner.
+    """
     super().__init__()
-    self.key_align = nn.Linear(
-        in_features=config.x_key_dim,
-        out_features=config.z_key_dim,
-        bias=False,
-    )
-    self.val_align = nn.Linear(
-        in_features=config.x_val_dim,
-        out_features=config.z_val_dim,
-        bias=False,
-    )
+
+    if key_aligner == "simple":
+      self.key_align = catlib.IngesTablesSimpleTextAligner(
+          in_features=x_key_dim,
+          out_features=z_key_dim,
+          bias=key_bias,
+          activation_fn=key_activation_fn,
+      )
+
+    if val_aligner == "simple":
+      self.val_align = catlib.IngesTablesSimpleTextAligner(
+          in_features=x_val_dim,
+          out_features=z_val_dim,
+          bias=val_bias,
+          activation_fn=val_activation_fn,
+      )
 
   def forward(
       self,
@@ -70,29 +101,78 @@ class CatAligner(nn.Module):
     return z_key_emb, z_val_emb
 
 
-@dataclasses.dataclass
-class NumAlignerConfig:
-  x_key_dim: int  # Input dimension.
-  x_val_dim: int  # Input dimension.
-  z_key_dim: int  # Hidden dimension.
-  z_val_dim: int  # Hidden dimension.
+class NumericAligner(nn.Module):
+  """Alignment module to pass numerical features to ingestables encoder."""
 
+  def __init__(
+      self,
+      x_key_dim: int,
+      x_val_dim: int,
+      z_key_dim: int,
+      z_val_dim: int,
+      key_aligner: Literal["simple"] = "simple",
+      key_bias: bool = False,
+      key_activation_fn: Optional[str] = "relu",
+      val_aligner: Literal["simple", "periodic", "identity"] = "simple",
+      val_bias: bool = False,
+      val_activation_fn: Optional[str] = "relu",
+      n_frequencies: Optional[int] = 48,
+      frequency_init_scale: Optional[float] = 0.01,
+  ):
+    """Initialize aligner for numerical features.
 
-class NumAligner(nn.Module):
-  """Alignment module to pass numerical features to ingestables.Encoder."""
+    Keys are the feature names, and vals are the feature values. For numeric
+    features, the keys are textual, while values are numerical.
 
-  def __init__(self, config: NumAlignerConfig):
+    Args:
+      x_key_dim: Input dimensions of feature keys.
+      x_val_dim: Input dimensions of feature values.
+      z_key_dim: Output dimensions of feature keys.
+      z_val_dim: Output dimensions of feature values.
+      key_aligner: Type of key aligner to use. Currently only "simple" is
+        supported.
+      key_bias: Whether to add a bias to the key aligner.
+      key_activation_fn: Activation function to use for key aligner.
+      val_aligner: Type of value aligner to use.
+      val_bias: Whether to add a bias to the value aligner.
+      val_activation_fn: Activation function to use for value aligner.
+      n_frequencies: the number of frequencies for each feature. This is only
+        used for periodic embeddings.
+      frequency_init_scale: the initialization scale for the first linear layer.
+        This is an important hyper-parameter. This is only used for periodic
+        embeddings.
+    """
     super().__init__()
-    self.key_align = nn.Linear(
-        in_features=config.x_key_dim,
-        out_features=config.z_key_dim,
-        bias=False,
-    )
-    self.val_align = nn.Linear(
-        in_features=config.x_val_dim,
-        out_features=config.z_val_dim,
-        bias=False,
-    )
+
+    if key_aligner == "simple":
+      self.key_align = catlib.IngesTablesSimpleTextAligner(
+          in_features=x_key_dim,
+          out_features=z_key_dim,
+          bias=key_bias,
+          activation_fn=key_activation_fn,
+      )
+
+    if val_aligner == "simple":
+      self.val_align = numlib.IngesTablesSimpleNumericAligner(
+          in_features=x_val_dim,
+          out_features=z_val_dim,
+          bias=val_bias,
+          activation_fn=val_activation_fn,
+      )
+    elif val_aligner == "periodic":
+      if x_val_dim != 1:
+        raise ValueError("Periodic aligner only supports 1D features")
+      self.val_align = numlib.PeriodicActEmbeddings(
+          d_embedding=z_val_dim,
+          activation_fn=val_activation_fn,
+          bias=val_bias,
+          n_frequencies=n_frequencies,
+          frequency_init_scale=frequency_init_scale,
+      )
+    elif val_aligner == "identity":
+      self.val_align = nn.Identity()
+    else:
+      raise ValueError(f"Unsupported val_aligner: {val_aligner}")
 
   def forward(
       self,

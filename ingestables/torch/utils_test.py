@@ -13,32 +13,13 @@
 # limitations under the License.
 
 from absl.testing import absltest
-from ingestables.torch.model.backbones import vanilla_transformer
-import torch
+from ingestables.torch import utils
 
 
-class VanillaTransformerTest(absltest.TestCase):
+class UtilTest(absltest.TestCase):
 
-  def test_backbone(self):
-    z_dim = 32
-    transformer = vanilla_transformer.Transformer(
-        layers=[
-            vanilla_transformer.TransformerLayer(
-                z_dim=z_dim,
-                num_heads=2,
-                dropout_attn=0.1,
-                dropout_mlp=0.1,
-            ),
-        ]
-    )
-
-    batch_size = 64
-    num_feats = 32
-    z_embs = torch.zeros(batch_size, num_feats, z_dim, dtype=torch.float32)
-
-    z_embs_out = transformer(z_embs)
-
-    self.assertEqual(z_embs_out.shape, (batch_size, num_feats, z_dim))
+  def test_seed_everything(self):
+    utils.seed_everything(0)
 
 
 if __name__ == "__main__":

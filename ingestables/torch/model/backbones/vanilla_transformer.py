@@ -14,25 +14,8 @@
 
 """Ingestables built-in backbone."""
 
-import dataclasses
-
 import torch
 from torch import nn
-
-
-@dataclasses.dataclass
-class TransformerConfig:
-  depth: int  # Number of stacked TransformerLayers.
-  z_dim: int  # Hidden dimension.
-  num_heads: int  # Number of heads.
-  dropout_attn: float  # Dropout rate for the attention layers.
-  dropout_mlp: float  # Dropout rate for the mlp layers.
-
-  def __post_init__(self):
-    if self.z_dim % self.num_heads:
-      raise ValueError(
-          f"z_dim={self.z_dim} not divisible by num_heads={self.num_heads}."
-      )
 
 
 class SwiGLU(nn.Module):
@@ -51,21 +34,21 @@ class SwiGLU(nn.Module):
 class MLP(nn.Module):
   """Multilayer perceptron."""
 
-  def __init__(self, config):
+  def __init__(self, z_dim: int, dropout_mlp: float):
     super().__init__()
     self.layers = nn.Sequential(
         nn.Linear(
-            in_features=config.z_dim,
-            out_features=config.z_dim * 4,
+            in_features=z_dim,
+            out_features=z_dim * 4,
             bias=False,
         ),
         SwiGLU(),
         nn.Linear(
-            in_features=config.z_dim * 2,
-            out_features=config.z_dim,
+            in_features=z_dim * 2,
+            out_features=z_dim,
             bias=False,
         ),
-        nn.Dropout(config.dropout_mlp),
+        nn.Dropout(dropout_mlp),
     )
 
   def forward(self, z_emb: torch.Tensor) -> torch.Tensor:
@@ -75,20 +58,26 @@ class MLP(nn.Module):
 class TransformerLayer(nn.Module):
   """Transformer layer."""
 
-  def __init__(self, config):
+  def __init__(
+      self,
+      z_dim: int,
+      num_heads: int,
+      dropout_attn: float,
+      dropout_mlp: float,
+  ):
     super().__init__()
     self.ln = nn.LayerNorm(
-        normalized_shape=config.z_dim,
+        normalized_shape=z_dim,
         bias=False,
     )
     self.attn = nn.MultiheadAttention(
-        embed_dim=config.z_dim,
-        num_heads=config.num_heads,
-        dropout=config.dropout_attn,
+        embed_dim=z_dim,
+        num_heads=num_heads,
+        dropout=dropout_attn,
         bias=False,
         batch_first=True,
     )
-    self.mlp = MLP(config)
+    self.mlp = MLP(z_dim=z_dim, dropout_mlp=dropout_mlp)
 
   def forward(self, z_emb: torch.Tensor) -> torch.Tensor:
     """Transformer layer."""
@@ -105,11 +94,9 @@ class TransformerLayer(nn.Module):
 class Transformer(nn.Module):
   """Transformer."""
 
-  def __init__(self, config):
+  def __init__(self, layers: list[TransformerLayer]):
     super().__init__()
-    self.layers = nn.Sequential(
-        *[TransformerLayer(config) for _ in range(config.depth)]
-    )
+    self.layers = nn.Sequential(*layers)
 
   def forward(self, z_emb: torch.Tensor) -> torch.Tensor:
     """Transformer."""

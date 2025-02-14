@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for aligner.py."""
-
 from absl.testing import absltest
 from ingestables.torch.model import aligner
 import torch
@@ -26,13 +24,18 @@ class AlignerTest(absltest.TestCase):
     x_val_dim = 768
     z_key_dim = 16
     z_val_dim = 32
-    cfg = aligner.CatAlignerConfig(
+    cat_aligner = aligner.TextualAligner(
         x_key_dim=x_key_dim,
         x_val_dim=x_val_dim,
         z_key_dim=z_key_dim,
         z_val_dim=z_val_dim,
+        key_aligner="simple",
+        key_bias=False,
+        key_activation_fn=None,
+        val_aligner="simple",
+        val_bias=False,
+        val_activation_fn=None,
     )
-    cat_aligner = aligner.CatAligner(cfg)
 
     batch_size = 2
     num_cat_feats = 5
@@ -60,13 +63,53 @@ class AlignerTest(absltest.TestCase):
     x_val_dim = 48
     z_key_dim = 16
     z_val_dim = 32
-    cfg = aligner.NumAlignerConfig(
+    num_aligner = aligner.NumericAligner(
         x_key_dim=x_key_dim,
         x_val_dim=x_val_dim,
         z_key_dim=z_key_dim,
         z_val_dim=z_val_dim,
+        key_aligner="simple",
+        key_bias=False,
+        key_activation_fn=None,
+        val_aligner="simple",
+        val_bias=True,
+        val_activation_fn="relu",
     )
-    num_aligner = aligner.NumAligner(cfg)
+
+    batch_size = 2
+    num_num_feats = 5
+    x_key_emb = torch.zeros(
+        batch_size, num_num_feats, x_key_dim, dtype=torch.float32
+    )
+    x_val_emb = torch.zeros(
+        batch_size, num_num_feats, x_val_dim, dtype=torch.float32
+    )
+
+    z_key_embs, z_val_embs = num_aligner(
+        x_keys=x_key_emb,
+        x_vals=x_val_emb,
+    )
+
+    self.assertEqual(z_key_embs.shape, (batch_size, num_num_feats, z_key_dim))
+    self.assertEqual(z_val_embs.shape, (batch_size, num_num_feats, z_val_dim))
+
+  def test_periodic_num_aligner(self):
+    x_key_dim = 768
+    x_val_dim = 1
+    z_key_dim = 16
+    z_val_dim = 32
+    num_aligner = aligner.NumericAligner(
+        x_key_dim=x_key_dim,
+        x_val_dim=x_val_dim,
+        z_key_dim=z_key_dim,
+        z_val_dim=z_val_dim,
+        key_aligner="simple",
+        key_bias=False,
+        key_activation_fn=None,
+        val_aligner="periodic",
+        val_bias=True,
+        val_activation_fn="relu",
+    )
 
     batch_size = 2
     num_num_feats = 5

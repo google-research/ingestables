@@ -12,134 +12,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Utility functions for loading and pre-processing datasets."""
+"""Pre-processing functions for data."""
 
-import json
-import os
 import re
 import string
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional
 import warnings
 
 from absl import logging
-import arff
-from etils import epath
-from ingestables.torch import types
-from ingestables.torch.data import base
+from ingestables.torch.data import utils
 import numpy as np
 import pandas as pd
-import scipy.io.arff as scipy_load
 from sklearn import impute
-from sklearn import preprocessing as sklearn_preprocessing
-from sklearn import tree as sklearn_tree
-import sklearn.model_selection as sklearn_model_selection
+import sklearn.preprocessing as sklearn_preprocessing
+import sklearn.tree as sklearn_tree
 import torch
-from torch.utils import data as torch_data
 import tqdm
 
-NDArray = np.typing.NDArray
-ROOT_PATH = epath.Path("~/ingestables")
-BASE_PATHS = {
-    "carte": ROOT_PATH / "datasets/carte/preprocessed",
-    "opentabs": ROOT_PATH / "datasets/opentabs",
-    "ingestables": ROOT_PATH / "datasets/verticals",
-}
 
-
-def get_dataset_names_in_benchmark(
-    benchmark_name: Literal["carte", "opentabs", "ingestables"],
-) -> List[str]:
-  """Get dataset names in a benchmark."""
-  if benchmark_name == "carte":
-    return [os.fspath(i).split("/")[-1] for i in BASE_PATHS["carte"].iterdir()]
-  elif benchmark_name == "opentabs":
-    return [
-        os.fspath(i).split("/")[-1] for i in BASE_PATHS["opentabs"].iterdir()
-    ]
-  elif benchmark_name == "ingestables":
-    risk_dataset_names = [
-        "00_risk/00_autos",
-        "00_risk/01_safe_driver",
-        "00_risk/02_home_credit",
-        "00_risk/03_give_me_some_credit",
-        "00_risk/04_south_africa_debt",
-        "00_risk/05_indonesian_telecom_delinquency",
-    ]
-    real_estate_dataset_names = [
-        "01_real_estate/00_nyc_housing",
-        "01_real_estate/01_us_real_estate",
-        "01_real_estate/02_usa_housing",
-        "01_real_estate/03_us_airbnb",
-        "01_real_estate/04_nashville_housing",
-    ]
-    return risk_dataset_names + real_estate_dataset_names
-
-  else:
-    raise ValueError(f"Unknown benchmark {benchmark_name}")
-
-
-# --------------------------------------------------------------------------
-# Dataset Loading Functions
-# --------------------------------------------------------------------------
-
-
-def load_carte_dataset(
-    dataset_name: str,
-    do_drop_cols_with_missing_values: bool = True,
-    do_drop_cols_with_one_unique_value: bool = True,
-) -> Tuple[pd.DataFrame, Dict[str, str]]:
-  """Load a pre-processed CARTE dataset."""
-  df_path = BASE_PATHS["carte"] / dataset_name / "raw.parquet"
-  config_path = BASE_PATHS["carte"] / dataset_name / "config_data.json"
-
-  with df_path.open("rb") as f:
-    data = pd.read_parquet(f)
-
-  with config_path.open("rb") as f:
-    config = json.load(f)
-
-  # Do a quick type check of the target value
-  target_key = config["target_name"]
-  task = config["task"]
-
-  target_dtype = data.dtypes.to_dict()[target_key]
-  if task == "regression":
-    assert target_dtype == "float"
-  elif task == "classification":
-    if target_dtype not in ["object", "string"]:
-      warnings.warn(
-          "Classification target should be either object or string, but got"
-          f" {target_dtype}"
-      )
-
-    if target_dtype in ["float", "int"]:
-      boolean_target = (data[target_key].nunique() == 2) and (
-          set(pd.unique(data[target_key]).astype(int)) == set([0, 1])
-      )
-      if boolean_target:
-        data[target_key] = data[target_key].replace({1.0: "true", 0.0: "false"})
-        logging.info("Replacing boolean target to strings")
-
-  # Drop columns and rows with misisng values
-  if do_drop_cols_with_missing_values:
-    data = drop_cols_with_missing_values(data=data)
-  if do_drop_cols_with_one_unique_value:
-    data = drop_cols_with_one_unique_value(data=data)
-
-  # Preprocess categorical features
-  # Prepreprocess string features
-  # TODO(mononito): Think about pre-processing string and categorical features
-
-  return data, config
-
-
-# def load_ingestables_dataset(
-#     dataset_name: str,
-#     do_drop_cols_with_missing_values: bool = True,
-#     do_drop_cols_with_one_unique_value: bool = True,
-# ) -> Tuple[pd.DataFrame, Dict[str, str]]:
-#   """Load a pre-processed Ingestables dataset."""
-#   pass
+NumericNanPolicy = Literal["mean", "median", "constant", "drop_rows"]
+NumericScalingMethod = Literal[
+    "min-max", "standard", "mean", "quantile", "power"
+]
+StringNanPolicy = Literal["drop_rows", "default_statement"]
+CategoricalNanPolicy = Literal[
+    "drop_rows", "most_frequent", "default_statement"
+]
 
 
 # --------------------------------------------------------------------------
@@ -147,6 +45,45 @@ def load_carte_dataset(
 # Numerical features can have heterogeneous scales. These techniques are used
 # to account for this heterogenity and bring the features to a common scale.
 # --------------------------------------------------------------------------
+
+
+def drop_cols_with_missing_values(
+    data: Dict[str, pd.DataFrame], proportion: float = 0.5
+) -> Dict[str, pd.DataFrame]:
+  """Drop columns with a high ratio of missing values."""
+
+  def _drop_cols(data: pd.DataFrame) -> List[str]:
+    missingness_ratio = utils.get_missingness_ratio(data)
+    return [col for col in data.columns if missingness_ratio[col] > proportion]
+
+  # if isinstance(data, pd.DataFrame):
+  #   return data.drop(columns=_drop_cols(data))
+
+  # TODO(mononito): "train", "val", "test" are hardcoded.
+  drop_cols_train = set(_drop_cols(data["train"]))
+  drop_cols_val = set(_drop_cols(data["val"]))
+  drop_cols_test = set(_drop_cols(data["test"]))
+  drop_cols = drop_cols_train.intersection(drop_cols_val, drop_cols_test)
+  return {k: v.drop(columns=drop_cols) for k, v in data.items()}
+
+
+def drop_cols_with_one_unique_value(
+    data: Dict[str, pd.DataFrame],
+) -> Dict[str, pd.DataFrame]:
+  """Drop columns with a single unique value."""
+
+  def _drop_cols(data: pd.DataFrame) -> List[str]:
+    num_unique_values = utils.get_num_unique_values(data)
+    return [col for col in data.columns if num_unique_values[col] == 1]
+
+  # if isinstance(data, pd.DataFrame):
+  #   return data.drop(columns=_drop_cols(data))
+
+  drop_cols_train = set(_drop_cols(data["train"]))
+  drop_cols_val = set(_drop_cols(data["val"]))
+  drop_cols_test = set(_drop_cols(data["test"]))
+  drop_cols = drop_cols_train.intersection(drop_cols_val, drop_cols_test)
+  return {k: v.drop(columns=drop_cols) for k, v in data.items()}
 
 
 def add_noise_to_numeric_features(
@@ -170,9 +107,15 @@ def add_noise_to_numeric_features(
   # Based on
   # https://github.com/yandex-research/rtdl-num-embeddings/blob/abf8a8b35854e4b06476bb48902096b0b58ffce2/lib/data.py#L192C13-L196C14
 
-  train_num_arr = data["train"].loc[:, num_feature_keys].to_numpy()
-  val_num_arr = data["val"].loc[:, num_feature_keys].to_numpy()
-  test_num_arr = data["test"].loc[:, num_feature_keys].to_numpy()
+  train_num_arr = (
+      data["train"].loc[:, num_feature_keys].to_numpy().astype(np.float32)
+  )
+  val_num_arr = (
+      data["val"].loc[:, num_feature_keys].to_numpy().astype(np.float32)
+  )
+  test_num_arr = (
+      data["test"].loc[:, num_feature_keys].to_numpy().astype(np.float32)
+  )
 
   # Compute noise levels on training set
   stds = np.std(train_num_arr, axis=0, keepdims=True)
@@ -223,29 +166,10 @@ def clean_text(
   return text[:truncate_len]
 
 
-class TorchDataWrapper(torch_data.Dataset):
-  """A convenience torch dataset for embedding text data."""
-
-  def __init__(self, data: pd.Series | list[str]):
-    super().__init__()
-    if isinstance(data, pd.Series):
-      self.data = data.to_list()
-    elif isinstance(data, list):
-      self.data = data
-
-  def __getitem__(self, index: int) -> str:
-    return self.data[index]
-
-  def __len__(self) -> int:
-    return len(self.data)
-
-
 def handle_text_features_with_missing_values(
     data: Dict[str, pd.DataFrame],
     feature_keys: List[str],
-    nan_policy: Literal[
-        "drop_rows", "most_frequent", "default_statement"
-    ] = "most_frequent",
+    nan_policy: CategoricalNanPolicy | StringNanPolicy = "most_frequent",
 ) -> Dict[str, pd.DataFrame]:
   """Handle text (categorical or string) features with missing values.
 
@@ -280,13 +204,16 @@ def handle_text_features_with_missing_values(
 
   elif nan_policy == "most_frequent":
     # Simple Imputer for Object types handles None and np.NaN separately
-    imputer = impute.SimpleImputer(strategy=nan_policy, missing_values=np.NaN)
-    train_arr = train_df.replace({None: np.NaN}).to_numpy()
-    imputer.fit(train_arr)
+    imputer = impute.SimpleImputer(strategy=nan_policy, missing_values=np.nan)
+    train_arr = train_df.replace({None: np.nan}).to_numpy()
+    val_arr = val_df.replace({None: np.nan}).to_numpy()
+    test_arr = test_df.replace({None: np.nan}).to_numpy()
+
+    imputer.fit(np.concatenate([train_arr, val_arr], axis=0))
 
     train_arr = imputer.transform(train_arr)
-    val_arr = imputer.transform(val_df.replace({None: np.NaN}).to_numpy())
-    test_arr = imputer.transform(test_df.replace({None: np.NaN}).to_numpy())
+    val_arr = imputer.transform(val_arr)
+    test_arr = imputer.fit_transform(test_arr)
 
     data["train"].loc[:, feature_keys] = train_arr
     data["val"].loc[:, feature_keys] = val_arr
@@ -314,7 +241,7 @@ def handle_text_features_with_missing_values(
 def handle_numeric_features_with_missing_values(
     data: Dict[str, pd.DataFrame],
     num_feature_keys: List[str],
-    nan_policy: Literal["mean", "median", "constant", "drop_rows"] = "mean",
+    nan_policy: NumericNanPolicy = "mean",
     fill_value: Optional[float] = None,
 ) -> Dict[str, pd.DataFrame]:
   """Handle rows with missing values.
@@ -374,264 +301,6 @@ def handle_numeric_features_with_missing_values(
 
 
 # --------------------------------------------------------------------------
-# Dataset pre-processing utils
-# --------------------------------------------------------------------------
-def get_missingness_ratio(data: pd.DataFrame) -> Dict[str, float]:
-  """For each column in a table, get the ratio of missing values."""
-  return data.isnull().astype(int).mean(axis=0).to_dict()
-
-
-def get_unique_values(data: pd.DataFrame) -> Dict[str, List[str]]:
-  """For each column in a table, get the unique values."""
-  unique_vals = {
-      col: pd.unique(data.loc[:, col]).tolist() for col in data.columns
-  }
-  # Remove NaN and None as unique values
-  for k, v in unique_vals.items():
-    if None in v:
-      unique_vals[k].remove(None)
-    if np.NaN in v:
-      unique_vals[k].remove(np.NaN)
-  return unique_vals
-
-
-def get_num_unique_values(data: pd.DataFrame) -> Dict[str, List[str]]:
-  """For each column in a table, get the unique values."""
-  return {col: data.loc[:, col].nunique() for col in data.columns}
-
-
-def drop_cols_with_missing_values(
-    data: pd.DataFrame, proportion: float = 0.5
-) -> pd.DataFrame:
-  """Drop columns with a high ratio of missing values."""
-  missingness_ratio = get_missingness_ratio(data)
-  drop_cols = [
-      col for col in data.columns if missingness_ratio[col] > proportion
-  ]
-  return data.drop(columns=drop_cols)
-
-
-def drop_cols_with_one_unique_value(data: pd.DataFrame) -> pd.DataFrame:
-  """Drop columns with a single unique value."""
-  num_unique_values = get_num_unique_values(data)
-  drop_cols = [col for col in data.columns if num_unique_values[col] == 1]
-  return data.drop(columns=drop_cols)
-
-
-def infer_feature_types(
-    data: pd.DataFrame, max_num_categories: int = 32
-) -> Dict[str, str]:
-  """Classify features into numeric, categorical, and string features."""
-  feature_types_ = data.dtypes.to_dict()
-  num_unique_values = get_num_unique_values(data)
-  feature_types = {}
-  for col, type_ in feature_types_.items():
-    if feature_types_[col] == "object":
-      feature_types[col] = (
-          "string"
-          if num_unique_values[col] > max_num_categories
-          else "categorical"
-      )
-    elif feature_types_[col] in ["float", "int"]:
-      feature_types[col] = "numeric"
-    else:
-      raise ValueError(f"Unknown feature {col} of type {type_}")
-  return feature_types
-
-
-def get_examples(
-    data: Union[pd.DataFrame, pd.Series],
-    num_examples: int = 5,
-    random_state: int = 13,
-) -> List[str]:
-  """Get examples from a dataframe.
-
-  This function is used to give examples of rows in a table or columns.
-
-  Args:
-    data: A feature or a table
-    num_examples: Number of examples
-    random_state: integer to control randomness
-
-  Returns:
-    A list of examples.
-  """
-  examples = data.sample(frac=1, random_state=random_state).iloc[:num_examples]
-  return [row for row in examples]
-
-
-def get_feature_descriptions(
-    data: pd.DataFrame,
-    num_examples: int = 5,
-    random_state: int = 13,
-    max_num_categories: int = 32,
-) -> Dict[str, base.FeatureDescription]:
-  """Get feature descriptions from a table.
-
-  Args:
-    data: Dataframe
-    num_examples: Number of examples for the summary
-    random_state: Random state
-    max_num_categories: Maximum number of categorical values
-
-  Returns:
-    List of feature descriptions
-  """
-  feature_descriptions = {}
-  feature_types = infer_feature_types(
-      data, max_num_categories=max_num_categories
-  )
-  unique_values = get_unique_values(data)
-  for col, feat_type in feature_types.items():
-    if feat_type == "string":
-      string_lengths = [len(i) for i in data[col] if i is not None]
-      feature_descriptions[col] = base.StringFeatureDescription(
-          feature_name=col,
-          max_length=max(string_lengths),
-          min_length=min(string_lengths),
-          example_strings=get_examples(data[col], num_examples, random_state),
-      )
-    elif feat_type == "categorical":
-      feature_descriptions[col] = base.CategoricalFeatureDescription(
-          feature_name=col,
-          num_categories=len(unique_values[col]),
-          categories=unique_values[col],  # pytype: disable=attribute-error
-      )
-    elif feat_type == "numeric":
-      stats = data[col].describe().to_dict()
-      feature_descriptions[col] = base.NumericFeatureDescription(
-          feature_name=col,
-          max=stats["max"],
-          min=stats["min"],
-          mean=stats["mean"],
-          std=stats["std"],
-          median=stats["50%"],
-      )
-    else:
-      raise ValueError(f"Unknown feature type {type}")
-  return feature_descriptions
-
-
-def get_dataset_and_description(
-    dataset_name: str,
-    benchmark: Literal["carte", "opentabs"] = "carte",
-    do_drop_cols_with_missing_values: bool = True,
-    do_drop_cols_with_one_unique_value: bool = True,
-    max_num_categories: int = 32,
-) -> Tuple[pd.DataFrame, base.DatasetDescription]:
-  """Get programmatic description of a dataset."""
-  if benchmark == "carte":
-    data, config = load_carte_dataset(
-        dataset_name=dataset_name,
-        do_drop_cols_with_missing_values=do_drop_cols_with_missing_values,
-        do_drop_cols_with_one_unique_value=do_drop_cols_with_one_unique_value,
-    )
-  elif benchmark == "opentabs":
-    # data, config = load_opentabs_dataset(dataset_name=dataset_name)
-    raise NotImplementedError("Opentabs dataset is not implemented yet.")
-  else:
-    raise ValueError(f"Unknown benchmark {benchmark}")
-
-  num_rows, num_features = data.shape
-  feature_descriptions = get_feature_descriptions(data, max_num_categories)
-
-  feat_keys_dict = {"numeric": [], "categorical": [], "string": []}
-  for feature_name, desc in feature_descriptions.items():
-    feat_keys_dict[desc.feature_type].append(feature_name)
-
-  # Sort feat_keys_dict
-  for k, v in feat_keys_dict.items():
-    feat_keys_dict[k] = sorted(v)
-
-  num_string_features = len(feat_keys_dict["string"])
-  num_categorical_features = len(feat_keys_dict["categorical"])
-  num_numeric_features = len(feat_keys_dict["numeric"])
-
-  target_key = config["target_name"]
-  if config["task"] == "classification":
-    task_information = types.ClassificationTaskInfo(
-        target_key=target_key,
-        target_classes=feature_descriptions[target_key].categories,  # pytype: disable=attribute-error
-    )
-  elif config["task"] == "regression":
-    task_information = types.RegressionTaskInfo(target_key=target_key)
-  else:
-    raise ValueError(f"Unknown task {config['task']}")
-
-  dataset_description = base.DatasetDescription(
-      dataset_name=dataset_name,
-      dataset_description=None,
-      num_rows=num_rows,
-      num_features=num_features,
-      num_string_features=num_string_features,
-      num_categorical_features=num_categorical_features,
-      num_numeric_features=num_numeric_features,
-      task_information=task_information,
-      feature_descriptions=feature_descriptions,
-      feature_keys_dict=feat_keys_dict,
-  )
-  return data, dataset_description
-
-
-def split_dataset(
-    data: pd.DataFrame,
-    task_info: types.ClassificationTaskInfo | types.RegressionTaskInfo,
-    train_ratio: float = 0.64,
-    val_ratio: float = 0.16,
-    test_ratio: float = 0.2,
-    random_state: int = 13,
-) -> Dict[str, pd.DataFrame]:
-  """Split a dataset randomly into a train, validation, and test splits.
-
-  Args:
-    data: pd.Dataframe
-    task_info: Task information
-    train_ratio: float = 0.64
-    val_ratio: float = 0.16
-    test_ratio: float = 0.2
-    random_state: int
-
-  Returns:
-    Train, validation and test data and targets.
-  """
-  # TODO(mononito): Add ability to split on groups
-  # First split data into train + val and test splits
-  task = task_info.task_type
-  target = data[task_info.target_key]
-  idxs = np.arange(len(data))
-  stratify = target if task == "classification" else None
-
-  assert train_ratio + val_ratio + test_ratio == 1
-  assert min(train_ratio, val_ratio, test_ratio) > 0
-
-  train_val_idxs, test_idxs = sklearn_model_selection.train_test_split(
-      idxs,
-      shuffle=True,
-      random_state=random_state,
-      stratify=stratify,
-      test_size=test_ratio,
-  )
-  train_idxs, val_idxs = sklearn_model_selection.train_test_split(
-      train_val_idxs, random_state=random_state, test_size=val_ratio
-  )
-
-  train_data = data.iloc[train_idxs, :]
-  val_data = data.iloc[val_idxs, :]
-  test_data = data.iloc[test_idxs, :]
-
-  assert len(train_data) + len(val_data) + len(test_data) == len(data)
-  assert np.abs((len(train_data) / len(data)) - train_ratio) < 0.1
-  assert np.abs((len(val_data) / len(data)) - val_ratio) < 0.1
-  assert np.abs((len(test_data) / len(data)) - test_ratio) < 0.1
-
-  return {
-      "train": train_data,
-      "val": val_data,
-      "test": test_data,
-  }
-
-
-# --------------------------------------------------------------------------
 # Scaling techniques
 # Numerical features can have heterogeneous scales. These techniques are used
 # to account for this heterogenity and bring the features to a common scale.
@@ -639,10 +308,11 @@ def split_dataset(
 def scale_numeric_features(
     data: Dict[str, pd.DataFrame],
     num_feature_keys: List[str],
-    scaling_method: Literal[
-        "min-max", "standard", "mean", "quantile"
-    ] = "quantile",
+    scaling_method: NumericScalingMethod = "quantile",
     num_quantiles: int = 48,
+    quantile_transformer_method: Literal["sklearn", "custom"] = "custom",
+    quantile_transform_subsample: int = 10_000,
+    quantile_transform_output_distribution: str = "normal",
 ) -> Dict[str, pd.DataFrame]:
   """Scale numeric features.
 
@@ -652,9 +322,16 @@ def scale_numeric_features(
     num_feature_keys: List of numeric feature keys
     scaling_method: One of "min-max", "standard", "mean".
     num_quantiles: Number of quantiles. Used in case of quantile normalization.
+    quantile_transformer_method: Method to use for quantile transformation. One
+      of "sklearn" or "custom". "sklearn" uses Scikit-Learn's
+      QuantileTransformer while "custom" uses a custom implementation.
+    quantile_transform_subsample: Subsample size for quantile transformation,
+      used by Scikit-Learn's QuantileTransformer.
+    quantile_transform_output_distribution: Output distribution for quantile,
+      used by Scikit-Learn's QuantileTransformer.
 
   Returns:
-    Dataframe with out numeric NaNs
+    Dataframe with scaled numeric features
   """
   # TODO(mononito): Check issues with shallow / deep copy
   train_num_arr = data["train"].loc[:, num_feature_keys].to_numpy()
@@ -662,7 +339,6 @@ def scale_numeric_features(
   test_num_arr = data["test"].loc[:, num_feature_keys].to_numpy()
 
   ai, bi = None, None
-  # NOTE: Stats are ordered as [mean, abs. mean, std, min, and max.]
   if scaling_method == "mean":
     bi = 0
     ai = np.nanmean(np.abs(train_num_arr), axis=0, keepdims=True)
@@ -672,7 +348,26 @@ def scale_numeric_features(
   elif scaling_method == "standard":
     bi = np.nanmean(train_num_arr, axis=0, keepdims=True)
     ai = np.nanstd(train_num_arr, axis=0, keepdims=True)
-  elif scaling_method == "quantile":
+  elif scaling_method == "power":
+    power_transformer = sklearn_preprocessing.PowerTransformer(
+        method="yeo-johnson", standardize=True, copy=True
+    )
+    train_num_arr = power_transformer.fit_transform(train_num_arr)
+    val_num_arr = power_transformer.transform(val_num_arr)
+    test_num_arr = power_transformer.transform(test_num_arr)
+  elif (
+      scaling_method == "quantile" and quantile_transformer_method == "sklearn"
+  ):
+    quantile_transformer = sklearn_preprocessing.QuantileTransformer(
+        n_quantiles=num_quantiles,
+        output_distribution=quantile_transform_output_distribution,
+        subsample=quantile_transform_subsample,
+        copy=True,
+    )
+    train_num_arr = quantile_transformer.fit_transform(train_num_arr)
+    val_num_arr = quantile_transformer.transform(val_num_arr)
+    test_num_arr = quantile_transformer.transform(test_num_arr)
+  elif scaling_method == "quantile" and quantile_transformer_method == "custom":
     # Compute quantiles based on the train split
     quantiles = Quantiles.from_sample(
         num_quantiles=num_quantiles,
@@ -726,7 +421,7 @@ def scale_numeric_features(
   else:
     raise ValueError(f"Unsupported scaling_method: {scaling_method=}")
 
-  if scaling_method != "quantile":
+  if scaling_method in ["mean", "min-max", "standard"]:
     train_num_arr = (train_num_arr - bi) / ai
     val_num_arr = (val_num_arr - bi) / ai
     test_num_arr = (test_num_arr - bi) / ai
@@ -848,102 +543,6 @@ class Quantiles:
     return quantiles_arr
 
 
-# -------------------------------------------------------   -------------------
-# Encoding techniques
-# Given a scalar numeric feature, an numeric encoder converts it to a vector of
-# length n_bins (number of bins). This encoding may have NaNs if the computed
-# bins are fewer than n_bins.
-# --------------------------------------------------------------------------
-def soft_one_hot_encoding(
-    x: torch.Tensor,
-    edges: torch.Tensor,
-):
-  """Performs soft one-hot encoding of the input features.
-
-  Args:
-      x: A tf.Tensor of shape [n_observations, n_features].
-      edges: A tf.Tensor of shape [n_features, n_bins + 1] containing the bin
-        edges.
-
-  Returns:
-      A tf.Tensor of shape [n_observations, n_features, n_bins] containing the
-      soft one-hot encoded features.
-  """
-
-  bin_centers = (edges[:, :-1] + edges[:, 1:]) / 2  # Calculate bin centers
-  std = 1 / torch.tensor(bin_centers.shape[0]).float()  # Standard deviation
-
-  # Calculate z-score (normalized distance from bin centers)
-  z_score = (x.unsqueeze(-1) - bin_centers.unsqueeze(0)) / std
-
-  # Replace NaNs with zeros
-  z_score = torch.where(
-      torch.isnan(z_score), torch.zeros_like(z_score), z_score
-  )
-
-  # Apply softmax with squared negative z-score for soft assignment
-  return torch.nn.functional.softmax(-torch.square(z_score), dim=-1)
-
-
-def piecewise_linear_encoding(
-    x: torch.Tensor,
-    edges: torch.Tensor,
-):
-  """Performs piecewise linear encoding on numeric features based on bin edges.
-
-  Args:
-    x: A tf.Tensor of shape [n_observations, n_features].
-    edges: A tf.Tensor of shape [n_features, n_bins + 1] containing the bin
-      edges.
-
-  Returns:
-    A tf.Tensor of shape [n_observations, n_features, n_bins] containing the
-    piecewise linear encoding.
-  """
-
-  left_edges = edges[:, :-1]
-  width = edges[:, 1:] - edges[:, :-1]
-
-  bin_counts = torch.sum(
-      torch.where(
-          torch.isnan(edges),
-          torch.zeros_like(edges).int(),
-          torch.ones_like(edges).int(),
-      ),
-      axis=1,
-  ).numpy()
-
-  # x: [n_observations, n_features]
-  x = (x.unsqueeze(-1) - left_edges.unsqueeze(0)) / width.unsqueeze(0)
-  # x: [n_observations, n_features, n_bins]
-
-  n_bins = x.shape[-1]
-  # Piecewise linear encoding with clipping for boundaries
-  ple = []
-  for i, count in enumerate(bin_counts):
-    if count == 1:
-      ple.append(x[..., i, :])
-    else:
-      clipped = torch.cat(
-          [
-              x[..., i, :1].clamp_max(1.0),
-              *(
-                  []
-                  if n_bins == 2
-                  else [x[..., i, 1 : count - 1].clamp(0.0, 1.0)]
-              ),
-              x[..., i, count - 1 : count].clamp_min(0.0),
-              x[..., i, count:],
-          ],
-          dim=-1,
-      )
-      ple.append(clipped)
-  encoding = torch.stack(ple, dim=-2)
-  return torch.where(
-      torch.isnan(encoding), torch.zeros_like(encoding), encoding
-  )
-
-
 # --------------------------------------------------------------------------
 # Binning functions.
 # --------------------------------------------------------------------------
@@ -1023,13 +622,13 @@ def compute_bins(
 
 
 def compute_target_aware_bins(
-    x: NDArray,
+    x: np.ndarray,
     n_bins: int = 48,
     tree_kwargs: Optional[Dict[str, Any]] = None,
-    target_values: Optional[NDArray] = None,
+    target_values: Optional[np.ndarray] = None,
     task: Optional[Literal["classification", "regression"]] = None,
     verbose: bool = False,
-) -> NDArray:
+) -> np.ndarray:
   """Compute target-aware bin edges.
 
   Args:
@@ -1084,7 +683,7 @@ def compute_target_aware_bins(
   return np.array(bins)
 
 
-def compute_uniform_bins(x: NDArray, n_bins: int = 48) -> NDArray:
+def compute_uniform_bins(x: np.ndarray, n_bins: int = 48) -> np.ndarray:
   """Compute uniform bin edges.
 
   Args:
@@ -1104,7 +703,9 @@ def compute_uniform_bins(x: NDArray, n_bins: int = 48) -> NDArray:
   )
 
 
-def validate_bins(bins: NDArray, suppress_warnings: bool = False) -> None:
+def validate_bins(
+    bins: np.ndarray | torch.Tensor, suppress_warnings: bool = False
+) -> None:
   """Function to if bins are valid."""
   if suppress_warnings:
     logging.info("Some warnings are suppressed.")
@@ -1139,46 +740,3 @@ def validate_bins(bins: NDArray, suppress_warnings: bool = False) -> None:
           " piecewise-linear encoding should not break anything, but it is the"
           " same as using sklearn.preprocessing.MinMaxScaler"
       )
-
-
-def read_arff(
-    vertical_name: str = "00_risk",
-    dataset_name: str = "04_south_africa_debt",
-) -> tuple[np.ndarray, scipy_load.MetaData]:
-  """Function to read arff dataset."""
-
-  path = (
-      epath.Path(BASE_PATHS["ingestables"])
-      / vertical_name
-      / dataset_name
-      / "raw_dataset.arff"
-  )
-
-  try:
-    with path.open(mode="r") as f:
-      data, meta = scipy_load.loadarff(f)
-  except NotImplementedError as exp:
-    with path.open(mode="r") as f:
-      print(f"Failed to load: {exp}. Trying to load with arff.load(...)")
-
-      del f
-      with path.open(mode="r") as f:
-        data_and_metadata = arff.load(f)
-
-      attr = []
-      # TODO(mononito): Import from scipy_load.arff.to_attribute does not work
-      # but arffread is going to be deprecated.
-      for attr_name, attr_type in data_and_metadata["attributes"]:
-        attr.append(scipy_load.arffread.to_attribute(attr_name, attr_type))
-
-      meta = scipy_load.MetaData(rel=data_and_metadata["relation"], attr=attr)
-
-      data = []
-      for i in range(len(data_and_metadata["data"])):
-        data.append(
-            tuple([data_and_metadata["data"][i][j] for j in range(len(attr))])
-        )
-
-      data = np.array(data, dtype=([(a.name, a.dtype) for a in attr]))
-
-  return data, meta

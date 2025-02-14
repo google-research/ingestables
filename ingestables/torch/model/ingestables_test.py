@@ -12,14 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for model.py."""
-
 from absl.testing import absltest
-from ingestables.torch.model import aligner
-from ingestables.torch.model import head
+from ingestables.torch import types
 from ingestables.torch.model import ingestables
-from ingestables.torch.model import kv_combiner
-from ingestables.torch.model.backbones import vanilla_transformer as backbone_lib
+from ingestables.torch.model.lib import generic_embeddings
 import torch
 from torch import nn
 
@@ -55,7 +51,7 @@ class FakeHead(nn.Module):
   def forward(
       self,
       z_emb: torch.Tensor,
-      inference_inputs: dict[str, torch.Tensor],
+      inference_inputs: types.IngesTablesInferenceInputs,
   ) -> torch.Tensor:
     del inference_inputs
     return torch.mean(z_emb, dim=-1, keepdim=True)
@@ -63,7 +59,7 @@ class FakeHead(nn.Module):
   def loss(
       self,
       logits: torch.Tensor,
-      training_inputs: dict[str, torch.Tensor],
+      training_inputs: types.IngesTablesTrainingInputs,
   ) -> torch.Tensor:
     del training_inputs
     return torch.mean(logits)
@@ -73,9 +69,9 @@ class EncoderTest(absltest.TestCase):
 
   def test_mask_and_missing(self):
     z_val_emb = torch.ones(4, dtype=torch.float32)
-    mask = torch.as_tensor([1, 1, 0, 0], dtype=torch.bool)
+    mask = torch.as_tensor([0, 0, 1, 1], dtype=torch.bool)
     mask_emb = torch.full((4,), fill_value=-1, dtype=torch.float32)
-    missing = torch.as_tensor([1, 0, 1, 0], dtype=torch.bool)
+    missing = torch.as_tensor([0, 1, 0, 1], dtype=torch.bool)
     missing_emb = torch.full((4,), fill_value=-2, dtype=torch.float32)
 
     # expected[0] is 1, because both mask and missing are 1, so z_val_emb
@@ -89,7 +85,7 @@ class EncoderTest(absltest.TestCase):
     # during training in order to ensure that information is removed, so mask
     # takes precedence.
     expected = torch.as_tensor([1, -2, -1, -1], dtype=torch.float32)
-    actual = ingestables.apply_mask_and_missing(
+    actual = generic_embeddings.apply_mask_and_missing(
         z_val_emb,
         mask=mask,
         mask_emb=mask_emb,
@@ -113,90 +109,103 @@ class EncoderTest(absltest.TestCase):
             "feat_type_2": FakeAligner(),
             "feat_type_3": FakeAligner(),
         },
-        kv_combiner=FakeKvCombiner(),
+        special_tokens={
+            "feat_type_1": generic_embeddings.IngesTablesSpecialTokens(
+                x_val_dim
+            ),
+            "feat_type_2": generic_embeddings.IngesTablesSpecialTokens(
+                x_val_dim
+            ),
+            "feat_type_3": generic_embeddings.IngesTablesSpecialTokens(
+                x_val_dim
+            ),
+        },
+        kv_combiner={
+            "feat_type_1": FakeKvCombiner(),
+            "feat_type_2": FakeKvCombiner(),
+            "feat_type_3": FakeKvCombiner(),
+        },
         backbone=FakeBackbone(),
-        mask_emb=nn.Parameter(torch.zeros(x_val_dim, dtype=torch.float32)),
-        missing_emb=nn.Parameter(torch.zeros(x_val_dim, dtype=torch.float32)),
     )
     inference_inputs = {
-        "feat_type_1": {
-            "x_keys": torch.zeros(
+        "feat_type_1": types.IngesTablesInferenceInputs(
+            x_keys=torch.zeros(
                 batch_size,
                 num_type_1_feats,
                 x_key_dim,
                 dtype=torch.float32,
             ),
-            "x_vals": torch.zeros(
+            x_vals=torch.zeros(
                 batch_size,
                 num_type_1_feats,
                 x_val_dim,
                 dtype=torch.float32,
             ),
-            "mask": torch.zeros(
+            mask=torch.zeros(
                 batch_size,
                 num_type_1_feats,
                 1,
                 dtype=torch.bool,
             ),
-            "missing": torch.zeros(
+            missing=torch.zeros(
                 batch_size,
                 num_type_1_feats,
                 1,
                 dtype=torch.bool,
             ),
-        },
-        "feat_type_2": {
-            "x_keys": torch.zeros(
+        ),
+        "feat_type_2": types.IngesTablesInferenceInputs(
+            x_keys=torch.zeros(
                 batch_size,
                 num_type_2_feats,
                 x_key_dim,
                 dtype=torch.float32,
             ),
-            "x_vals": torch.zeros(
+            x_vals=torch.zeros(
                 batch_size,
                 num_type_2_feats,
                 x_val_dim,
                 dtype=torch.float32,
             ),
-            "mask": torch.zeros(
+            mask=torch.zeros(
                 batch_size,
                 num_type_2_feats,
                 1,
                 dtype=torch.bool,
             ),
-            "missing": torch.zeros(
+            missing=torch.zeros(
                 batch_size,
                 num_type_2_feats,
                 1,
                 dtype=torch.bool,
             ),
-        },
-        "feat_type_3": {
-            "x_keys": torch.zeros(
+        ),
+        "feat_type_3": types.IngesTablesInferenceInputs(
+            x_keys=torch.zeros(
                 batch_size,
                 num_type_3_feats,
                 x_key_dim,
                 dtype=torch.float32,
             ),
-            "x_vals": torch.zeros(
+            x_vals=torch.zeros(
                 batch_size,
                 num_type_3_feats,
                 x_val_dim,
                 dtype=torch.float32,
             ),
-            "mask": torch.zeros(
+            mask=torch.zeros(
                 batch_size,
                 num_type_3_feats,
                 1,
                 dtype=torch.bool,
             ),
-            "missing": torch.zeros(
+            missing=torch.zeros(
                 batch_size,
                 num_type_3_feats,
                 1,
                 dtype=torch.bool,
             ),
-        },
+        ),
     }
     z_emb_dict = encoder(inference_inputs)
     self.assertEqual(
@@ -213,130 +222,6 @@ class EncoderTest(absltest.TestCase):
     self.assertEqual(
         z_emb_dict["feat_type_3"].shape,
         (batch_size, num_type_3_feats, x_key_dim + x_val_dim),
-    )
-
-  def test_encoder_from_config(self):
-
-    text_emb_dim = 768
-    num_emb_dim = 48
-    z_key_dim = 16
-    z_val_dim = 32
-    num_heads = 2
-    depth = 1
-    dropout_attn = 0.0
-    dropout_mlp = 0.0
-
-    aligner_cls_dict = {
-        "cat": aligner.CatAligner,
-        "num": aligner.NumAligner,
-    }
-    kv_combiner_cls_dict = {
-        "concat": kv_combiner.Concatenate,
-    }
-    backbone_cls_dict = {
-        "transformer": backbone_lib.Transformer,
-    }
-    config = ingestables.EncoderConfig(
-        aligners={
-            "cat": aligner.CatAlignerConfig(
-                x_key_dim=text_emb_dim,
-                x_val_dim=text_emb_dim,
-                z_key_dim=z_key_dim,
-                z_val_dim=z_val_dim,
-            ),
-            "num": aligner.NumAlignerConfig(
-                x_key_dim=text_emb_dim,
-                x_val_dim=num_emb_dim,
-                z_key_dim=z_key_dim,
-                z_val_dim=z_val_dim,
-            ),
-        },
-        z_val_dim=z_val_dim,
-        kv_combiner_type="concat",
-        backbone_type="transformer",
-        backbone=backbone_lib.TransformerConfig(
-            depth=depth,
-            z_dim=z_key_dim + z_val_dim,
-            num_heads=num_heads,
-            dropout_attn=dropout_attn,
-            dropout_mlp=dropout_mlp,
-        ),
-    )
-    ingestables_encoder = ingestables.encoder_from_config(
-        aligner_cls_dict=aligner_cls_dict,
-        kv_combiner_cls_dict=kv_combiner_cls_dict,
-        backbone_cls_dict=backbone_cls_dict,
-        config=config,
-    )
-    self.assertIsInstance(ingestables_encoder, ingestables.Encoder)
-
-    batch_size = 2
-    num_cat_feats = 3
-    num_num_feats = 4
-
-    inference_inputs = {
-        "cat": {
-            "x_keys": torch.zeros(
-                batch_size,
-                num_cat_feats,
-                text_emb_dim,
-                dtype=torch.float32,
-            ),
-            "x_vals": torch.zeros(
-                batch_size,
-                num_cat_feats,
-                text_emb_dim,
-                dtype=torch.float32,
-            ),
-            "mask": torch.zeros(
-                batch_size,
-                num_cat_feats,
-                1,
-                dtype=torch.bool,
-            ),
-            "missing": torch.zeros(
-                batch_size,
-                num_cat_feats,
-                1,
-                dtype=torch.bool,
-            ),
-        },
-        "num": {
-            "x_keys": torch.zeros(
-                batch_size,
-                num_num_feats,
-                text_emb_dim,
-                dtype=torch.float32,
-            ),
-            "x_vals": torch.zeros(
-                batch_size,
-                num_num_feats,
-                num_emb_dim,
-                dtype=torch.float32,
-            ),
-            "mask": torch.zeros(
-                batch_size,
-                num_num_feats,
-                1,
-                dtype=torch.bool,
-            ),
-            "missing": torch.zeros(
-                batch_size,
-                num_num_feats,
-                1,
-                dtype=torch.bool,
-            ),
-        },
-    }
-    z_emb_dict = ingestables_encoder(inference_inputs)
-    self.assertEqual(z_emb_dict.keys(), {"cat", "num"})
-    self.assertEqual(
-        z_emb_dict["cat"].shape,
-        (batch_size, num_cat_feats, z_key_dim + z_val_dim),
-    )
-    self.assertEqual(
-        z_emb_dict["num"].shape,
-        (batch_size, num_num_feats, z_key_dim + z_val_dim),
     )
 
 
@@ -356,94 +241,107 @@ class ModelTest(absltest.TestCase):
             "feat_type_2": FakeAligner(),
             "feat_type_3": FakeAligner(),
         },
-        kv_combiner=FakeKvCombiner(),
+        special_tokens={
+            "feat_type_1": generic_embeddings.IngesTablesSpecialTokens(
+                x_val_dim
+            ),
+            "feat_type_2": generic_embeddings.IngesTablesSpecialTokens(
+                x_val_dim
+            ),
+            "feat_type_3": generic_embeddings.IngesTablesSpecialTokens(
+                x_val_dim
+            ),
+        },
+        kv_combiner={
+            "feat_type_1": FakeKvCombiner(),
+            "feat_type_2": FakeKvCombiner(),
+            "feat_type_3": FakeKvCombiner(),
+        },
         backbone=FakeBackbone(),
         heads={
             "feat_type_1": FakeHead(),
             "feat_type_2": FakeHead(),
         },
-        mask_emb=nn.Parameter(torch.zeros(x_val_dim, dtype=torch.float32)),
-        missing_emb=nn.Parameter(torch.zeros(x_val_dim, dtype=torch.float32)),
     )
     inference_inputs = {
-        "feat_type_1": {
-            "x_keys": torch.zeros(
+        "feat_type_1": types.IngesTablesInferenceInputs(
+            x_keys=torch.zeros(
                 batch_size,
                 num_type_1_feats,
                 x_key_dim,
                 dtype=torch.float32,
             ),
-            "x_vals": torch.zeros(
+            x_vals=torch.zeros(
                 batch_size,
                 num_type_1_feats,
                 x_val_dim,
                 dtype=torch.float32,
             ),
-            "mask": torch.zeros(
+            mask=torch.zeros(
                 batch_size,
                 num_type_1_feats,
                 1,
                 dtype=torch.bool,
             ),
-            "missing": torch.zeros(
+            missing=torch.zeros(
                 batch_size,
                 num_type_1_feats,
                 1,
                 dtype=torch.bool,
             ),
-        },
-        "feat_type_2": {
-            "x_keys": torch.zeros(
+        ),
+        "feat_type_2": types.IngesTablesInferenceInputs(
+            x_keys=torch.zeros(
                 batch_size,
                 num_type_2_feats,
                 x_key_dim,
                 dtype=torch.float32,
             ),
-            "x_vals": torch.zeros(
+            x_vals=torch.zeros(
                 batch_size,
                 num_type_2_feats,
                 x_val_dim,
                 dtype=torch.float32,
             ),
-            "mask": torch.zeros(
+            mask=torch.zeros(
                 batch_size,
                 num_type_2_feats,
                 1,
                 dtype=torch.bool,
             ),
-            "missing": torch.zeros(
+            missing=torch.zeros(
                 batch_size,
                 num_type_2_feats,
                 1,
                 dtype=torch.bool,
             ),
-        },
-        "feat_type_3": {
-            "x_keys": torch.zeros(
+        ),
+        "feat_type_3": types.IngesTablesInferenceInputs(
+            x_keys=torch.zeros(
                 batch_size,
                 num_type_3_feats,
                 x_key_dim,
                 dtype=torch.float32,
             ),
-            "x_vals": torch.zeros(
+            x_vals=torch.zeros(
                 batch_size,
                 num_type_3_feats,
                 x_val_dim,
                 dtype=torch.float32,
             ),
-            "mask": torch.zeros(
+            mask=torch.zeros(
                 batch_size,
                 num_type_3_feats,
                 1,
                 dtype=torch.bool,
             ),
-            "missing": torch.zeros(
+            missing=torch.zeros(
                 batch_size,
                 num_type_3_feats,
                 1,
                 dtype=torch.bool,
             ),
-        },
+        ),
     }
     logits_dict = model(inference_inputs)
     # Note that "feat_type_3" is absent, because there is no corresponding head.
@@ -456,8 +354,8 @@ class ModelTest(absltest.TestCase):
     )
 
     training_inputs = {
-        "feat_type_2": {},
-        "feat_type_3": {},
+        "feat_type_2": types.IngesTablesTrainingInputs(),
+        "feat_type_3": types.IngesTablesTrainingInputs(),
     }
     losses_dict = model.loss(logits_dict, training_inputs)
     # Note that "feat_type_3" is absent, because there is no corresponding
@@ -467,169 +365,6 @@ class ModelTest(absltest.TestCase):
     self.assertEqual(losses_dict.keys(), {"feat_type_2"})
     self.assertEqual(losses_dict["feat_type_2"].shape, ())
 
-  def test_model_from_config(self):
-    batch_size = 4
-    text_emb_dim = 768
-    num_emb_dim = 48
-    max_num_classes = 2
-    z_key_dim = 16
-    z_val_dim = 32
-    num_heads = 2
-    depth = 1
-    dropout_attn = 0.0
-    dropout_mlp = 0.0
-
-    aligner_cls_dict = {
-        "cat": aligner.CatAligner,
-        "num": aligner.NumAligner,
-    }
-    kv_combiner_cls_dict = {
-        "concat": kv_combiner.Concatenate,
-    }
-    backbone_cls_dict = {
-        "transformer": backbone_lib.Transformer,
-    }
-    head_cls_dict = {
-        "cat": head.Classification,
-        "num": head.Regression,
-    }
-    config = ingestables.ModelConfig(
-        aligners={
-            "cat": aligner.CatAlignerConfig(
-                x_key_dim=text_emb_dim,
-                x_val_dim=text_emb_dim,
-                z_key_dim=z_key_dim,
-                z_val_dim=z_val_dim,
-            ),
-            "num": aligner.NumAlignerConfig(
-                x_key_dim=text_emb_dim,
-                x_val_dim=num_emb_dim,
-                z_key_dim=z_key_dim,
-                z_val_dim=z_val_dim,
-            ),
-        },
-        z_val_dim=z_val_dim,
-        kv_combiner_type="concat",
-        backbone_type="transformer",
-        backbone=backbone_lib.TransformerConfig(
-            depth=depth,
-            z_dim=z_key_dim + z_val_dim,
-            num_heads=num_heads,
-            dropout_attn=dropout_attn,
-            dropout_mlp=dropout_mlp,
-        ),
-        heads={
-            "cat": head.ClassificationConfig(
-                max_num_classes=max_num_classes,
-            ),
-            "num": head.RegressionConfig(z_dim=z_key_dim + z_val_dim),
-        },
-    )
-    model = ingestables.model_from_config(
-        aligner_cls_dict=aligner_cls_dict,
-        kv_combiner_cls_dict=kv_combiner_cls_dict,
-        backbone_cls_dict=backbone_cls_dict,
-        head_cls_dict=head_cls_dict,
-        config=config,
-    )
-    self.assertIsInstance(model, ingestables.Model)
-
-    num_cat_feats = 5
-    num_num_feats = 7
-    inference_inputs = {
-        "cat": {
-            "x_keys": torch.zeros(
-                batch_size,
-                num_cat_feats,
-                text_emb_dim,
-                dtype=torch.float32,
-            ),
-            "x_vals": torch.zeros(
-                batch_size,
-                num_cat_feats,
-                text_emb_dim,
-                dtype=torch.float32,
-            ),
-            "mask": torch.zeros(
-                batch_size,
-                num_cat_feats,
-                1,
-                dtype=torch.bool,
-            ),
-            "missing": torch.zeros(
-                batch_size,
-                num_cat_feats,
-                1,
-                dtype=torch.bool,
-            ),
-            "x_vals_all": torch.zeros(
-                batch_size,
-                num_cat_feats,
-                max_num_classes,
-                text_emb_dim,
-                dtype=torch.float32,
-            ),
-            "padding": torch.zeros(
-                batch_size,
-                num_cat_feats,
-                max_num_classes,
-                dtype=torch.bool,
-            ),
-        },
-        "num": {
-            "x_keys": torch.zeros(
-                batch_size,
-                num_num_feats,
-                text_emb_dim,
-                dtype=torch.float32,
-            ),
-            "x_vals": torch.zeros(
-                batch_size,
-                num_num_feats,
-                num_emb_dim,
-                dtype=torch.float32,
-            ),
-            "mask": torch.zeros(
-                batch_size,
-                num_num_feats,
-                1,
-                dtype=torch.bool,
-            ),
-            "missing": torch.zeros(
-                batch_size,
-                num_num_feats,
-                1,
-                dtype=torch.bool,
-            ),
-        },
-    }
-    logits_dict = model(inference_inputs)
-    self.assertEqual(logits_dict.keys(), {"cat", "num"})
-    self.assertEqual(
-        logits_dict["cat"].shape, (batch_size, num_cat_feats, max_num_classes)
-    )
-    self.assertEqual(logits_dict["num"].shape, (batch_size, num_num_feats, 1))
-
-    training_inputs = {
-        "num": {
-            "y_vals": torch.zeros(
-                batch_size,
-                num_num_feats,
-                1,
-                dtype=torch.float32,
-            ),
-            "loss_weights": torch.ones(
-                batch_size,
-                num_num_feats,
-                1,
-                dtype=torch.float32,
-            ),
-        },
-    }
-    losses_dict = model.loss(logits_dict, training_inputs)
-    # Note that "cat" is absent, since there is no corresponding training input.
-    self.assertEqual(losses_dict.keys(), {"num"})
-    self.assertEqual(losses_dict["num"].shape, ())
 
 if __name__ == "__main__":
   absltest.main()

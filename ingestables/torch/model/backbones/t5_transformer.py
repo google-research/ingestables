@@ -27,19 +27,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""PyTorch T5 Encoder-only model without Positional Embeddings."""
+"""PyTorch T5 Encoder-only model without Positional Embeddings.
 
+Source:
+https://github.com/huggingface/transformers/blob/v4.44.2/src/transformers/models/t5/modeling_t5.py
+"""
 
-import copy
+from ingestables.torch.model.lib import activations
 import torch
 from torch import nn
-from torch.utils import checkpoint
-from transformers import activations
 from transformers import configuration_utils
 from transformers import file_utils
 from transformers import modeling_utils
 from transformers.utils import logging
-from transformers.utils import model_parallel_utils
 
 
 logger = logging.get_logger(__name__)
@@ -83,7 +83,7 @@ class T5Config(configuration_utils.PretrainedConfig):
       dropout_rate=0.1,
       layer_norm_epsilon=1e-6,
       initializer_factor=1.0,
-      feed_forward_proj="relu",
+      feed_forward_proj="gated-gelu",
       **kwargs,
   ):
     self.d_model = d_model
@@ -156,7 +156,7 @@ class T5DenseGatedGeluDense(nn.Module):
     self.wi_1 = nn.Linear(config.d_model, config.d_ff, bias=False)
     self.wo = nn.Linear(config.d_ff, config.d_model, bias=False)
     self.dropout = nn.Dropout(config.dropout_rate)
-    self.gelu_act = activations.ACT2FN["gelu_new"]
+    self.gelu_act = activations.get_activation_fn("gelu_new")
 
   def forward(self, hidden_states):
     hidden_gelu = self.gelu_act(self.wi_0(hidden_states))
@@ -212,7 +212,6 @@ class T5Attention(nn.Module):
     self.o = nn.Linear(self.inner_dim, self.d_model, bias=False)
 
     self.pruned_heads = set()
-    self.gradient_checkpointing = False
 
   def prune_heads(self, heads):
     if len(heads) == 0:  #  pylint: disable=g-explicit-length-test
@@ -318,30 +317,6 @@ class T5Attention(nn.Module):
     # equivalent of torch.einsum("bnqd,bnkd->bnqk", query_states, key_states),
     # compatible with onnx op>9
 
-    # NOTE: Setting off position bias
-    # if position_bias is None:
-    #   if not self.has_relative_attention_bias:
-    #     position_bias = torch.zeros(
-    #         (1, self.n_heads, real_seq_length, key_length),
-    #         device=scores.device,
-    #         dtype=scores.dtype,
-    #     )
-    #     if self.gradient_checkpointing and self.training:
-    #       position_bias.requires_grad = True
-    #   else:
-    #     position_bias = self.compute_bias(real_seq_length, key_length)
-
-    #   # if key and values are already calculated
-    #   # we want only the last query position bias
-    #   if past_key_value is not None:
-    #     position_bias = position_bias[:, :, -hidden_states.size(1) :, :]
-
-    #   if mask is not None:
-    #     position_bias = (
-    #         position_bias + mask
-    #     )  # (batch_size, n_heads, seq_length, key_length)
-
-    # scores += position_bias
     attn_weights = nn.functional.softmax(scores.float(), dim=-1).type_as(
         scores
     )  # (batch_size, n_heads, seq_length, key_length)
@@ -361,7 +336,7 @@ class T5Attention(nn.Module):
     present_key_value_state = (
         (key_states, value_states) if (self.is_decoder and use_cache) else None
     )
-    outputs = (attn_output,) + (present_key_value_state,)  # + (position_bias,)
+    outputs = (attn_output,) + (present_key_value_state,)
 
     if output_attentions:
       outputs = outputs + (attn_weights,)
@@ -477,8 +452,6 @@ class T5PreTrainedModel(modeling_utils.PreTrainedModel):
 
   config_class = T5Config
   base_model_prefix = "transformer"
-  is_parallelizable = True
-  supports_gradient_checkpointing = True
 
   @property
   def dummy_inputs(self):
@@ -543,14 +516,9 @@ class T5PreTrainedModel(modeling_utils.PreTrainedModel):
           mean=0.0, std=factor * ((n_heads * key_value_proj_dim) ** -0.5)
       )
 
-  # def _set_gradient_checkpointing(self, module = , value=False):
-  #   if isinstance(module, (T5Attention, T5Stack)):
-  #     module.gradient_checkpointing = value
-  # TODO(mononito): Check if gradient checkpointing work
 
-
-class T5Stack(T5PreTrainedModel):
-  """T5 Stack."""
+class T5EncoderModel(T5PreTrainedModel):
+  """T5 Encoder Model."""
 
   def __init__(self, config):
     super().__init__(config)
@@ -565,169 +533,41 @@ class T5Stack(T5PreTrainedModel):
 
     # Initialize weights and apply final processing
     self.post_init()
-    # Model parallel
-    self.model_parallel = False
-    self.device_map = None
-    self.gradient_checkpointing = False
-
-  def parallelize(self, device_map=None):
-    # Check validity of device_map
-    self.device_map = (
-        model_parallel_utils.get_device_map(  # pylint: disable=g-long-ternary
-            len(self.block), range(torch.cuda.device_count())
-        )
-        if device_map is None
-        else device_map
-    )
-    model_parallel_utils.assert_device_map(self.device_map, len(self.block))
-    self.model_parallel = True
-    self.first_device = (
-        "cpu"
-        if "cpu" in self.device_map.keys()
-        else "cuda:" + str(min(self.device_map.keys()))
-    )
-    self.last_device = "cuda:" + str(max(self.device_map.keys()))
-    # Load onto devices
-    for k, v in self.device_map.items():
-      for layer in v:
-        cuda_device = "cuda:" + str(k)
-        self.block[layer] = self.block[layer].to(cuda_device)
-
-    # Set final layer norm to last device
-    self.final_layer_norm = self.final_layer_norm.to(self.last_device)
-
-  def deparallelize(self):
-    self.model_parallel = False
-    self.device_map = None
-    self.first_device = "cpu"
-    self.last_device = "cpu"
-    for i in range(len(self.block)):
-      self.block[i] = self.block[i].to("cpu")
-    self.final_layer_norm = self.final_layer_norm.to("cpu")
-    torch.cuda.empty_cache()
 
   def forward(
       self,
+      z_emb=None,
       attention_mask=None,
-      inputs_embeds=None,
   ):
-    # Model parallel
-    if self.model_parallel:
-      torch.cuda.set_device(self.first_device)
-
-    input_shape = inputs_embeds.size()[:-1]
+    input_shape = z_emb.size()[:-1]
     batch_size, seq_length = input_shape
 
     if attention_mask is None:
-      attention_mask = torch.ones(batch_size, seq_length).to(
-          inputs_embeds.device
-      )
+      attention_mask = torch.ones(batch_size, seq_length).to(z_emb.device)
     extended_attention_mask = self.get_extended_attention_mask(
-        attention_mask, input_shape, inputs_embeds.device
+        attention_mask, input_shape, z_emb.device
     )
 
     # Prepare head mask if needed
-    hidden_states = self.dropout(inputs_embeds)
+    hidden_states = self.dropout(z_emb)
 
-    for i, layer_module in enumerate(self.block):
-      # Model parallel
-      if self.model_parallel:
-        torch.cuda.set_device(hidden_states.device)
-        # Ensure that attention_mask is always on the same device as
-        # hidden_states
-        if attention_mask is not None:
-          attention_mask = attention_mask.to(hidden_states.device)
-
-      if self.gradient_checkpointing and self.training:
-
-        def create_custom_forward(module):
-          def custom_forward(*inputs):
-            return tuple(module(*inputs, False, False))
-
-          return custom_forward
-
-        layer_outputs = checkpoint.checkpoint(
-            create_custom_forward(layer_module),
-            hidden_states,
-            extended_attention_mask,
-            None,  # encoder_hidden_states
-            None,  # encoder_attention_mask
-            None,  # layer_head_mask
-            None,  # past_key_value is always None with gradient checkpointing
-        )
-      else:
-        layer_outputs = layer_module(
-            hidden_states,
-            attention_mask=extended_attention_mask,
-            encoder_hidden_states=None,
-            encoder_attention_mask=None,
-            layer_head_mask=None,
-            past_key_value=None,
-            use_cache=False,
-            output_attentions=False,
-        )
+    for layer_module in self.block:
+      layer_outputs = layer_module(
+          hidden_states,
+          attention_mask=extended_attention_mask,
+          encoder_hidden_states=None,
+          encoder_attention_mask=None,
+          layer_head_mask=None,
+          past_key_value=None,
+          use_cache=False,
+          output_attentions=False,
+      )
 
       # layer_outputs is a tuple with:
       # hidden-states, key-value-states, (self-attention weights), ...
       hidden_states = layer_outputs[0]
 
-      # Model Parallel: If it's the last layer for that device,
-      # put things on the next device
-      if self.model_parallel:
-        for k, v in self.device_map.items():
-          if i == v[-1] and "cuda:" + str(k) != self.last_device:
-            hidden_states = hidden_states.to("cuda:" + str(k + 1))
-
     hidden_states = self.final_layer_norm(hidden_states)
     hidden_states = self.dropout(hidden_states)
 
     return hidden_states
-
-
-class T5EncoderModel(T5PreTrainedModel):
-  """T5 Encoder Model."""
-
-  def __init__(self, config: T5Config):
-    super().__init__(config)
-    encoder_config = copy.deepcopy(config)
-    self.encoder = T5Stack(encoder_config)
-
-    # Initialize weights and apply final processing
-    self.post_init()
-
-    # Model parallel
-    self.model_parallel = False
-    self.device_map = None
-
-  def parallelize(self, device_map=None):
-    self.device_map = (
-        model_parallel_utils.get_device_map(  # pylint: disable=g-long-ternary
-            len(self.encoder.block), range(torch.cuda.device_count())
-        )
-        if device_map is None
-        else device_map
-    )
-    model_parallel_utils.assert_device_map(
-        self.device_map, len(self.encoder.block)
-    )
-    self.encoder.parallelize(self.device_map)
-    self.model_parallel = True
-
-  def deparallelize(self):
-    self.encoder.deparallelize()
-    self.encoder = self.encoder.to("cpu")
-    self.model_parallel = False
-    self.device_map = None
-    torch.cuda.empty_cache()
-
-  def forward(
-      self,
-      attention_mask=None,
-      inputs_embeds=None,
-  ):
-    encoder_outputs = self.encoder(
-        attention_mask=attention_mask,
-        inputs_embeds=inputs_embeds,
-    )
-
-    return encoder_outputs

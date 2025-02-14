@@ -12,9 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for head.py."""
-
 from absl.testing import absltest
+from ingestables.torch import types
 from ingestables.torch.model import head
 import torch
 from torch import nn
@@ -75,6 +74,18 @@ class ClassificationTest(absltest.TestCase):
         2,
         dtype=torch.bool,
     )  # shape: [4, 1, 2]
+    mask = torch.ones(
+        4,
+        1,
+        2,
+        dtype=torch.bool,
+    )  # shape: [4, 1, 2]
+    missing = torch.ones(
+        4,
+        1,
+        2,
+        dtype=torch.bool,
+    )  # shape: [4, 1, 2]
     expected_logits = torch.as_tensor(
         [
             [[-3, 3]],
@@ -87,18 +98,22 @@ class ClassificationTest(absltest.TestCase):
 
     aligner = IdentityAligner()
     kv_combiner = IdentityKvCombiner()
-    classification_head = head.Classification(
-        config=head.ClassificationConfig(max_num_classes=max_num_classes),
+    classification_head = head.IngesTablesClassification(
         aligner=aligner,
         kv_combiner=kv_combiner,
+        max_num_classes=max_num_classes,
+    )
+    inference_inputs = types.IngesTablesInferenceInputs(
+        x_keys=x_keys,
+        x_vals=x_vals_all,
+        mask=mask,
+        missing=missing,
+        x_vals_all=x_vals_all,
+        padding=padding,
     )
     actual_logits = classification_head(
         z_emb,
-        inference_inputs=dict(
-            x_keys=x_keys,
-            x_vals_all=x_vals_all,
-            padding=padding,
-        ),
+        inference_inputs=inference_inputs,
     )  # shape: [4, 1, 2]
 
     self.assertEqual(actual_logits.shape, (4, 1, 2))
@@ -136,6 +151,18 @@ class ClassificationTest(absltest.TestCase):
         2,
         dtype=torch.bool,
     )  # shape: [4, 2, 2]
+    mask = torch.ones(
+        4,
+        1,
+        2,
+        dtype=torch.bool,
+    )  # shape: [4, 1, 2]
+    missing = torch.ones(
+        4,
+        1,
+        2,
+        dtype=torch.bool,
+    )  # shape: [4, 1, 2]
     expected_logits = torch.as_tensor(
         [
             [[-3, 3], [3, -3]],
@@ -148,18 +175,22 @@ class ClassificationTest(absltest.TestCase):
 
     aligner = IdentityAligner()
     kv_combiner = IdentityKvCombiner()
-    classification_head = head.Classification(
-        config=head.ClassificationConfig(max_num_classes=max_num_classes),
+    classification_head = head.IngesTablesClassification(
         aligner=aligner,
         kv_combiner=kv_combiner,
+        max_num_classes=max_num_classes,
+    )
+    inference_inputs = types.IngesTablesInferenceInputs(
+        x_keys=x_keys,
+        x_vals=x_vals_all,
+        mask=mask,
+        missing=missing,
+        x_vals_all=x_vals_all,
+        padding=padding,
     )
     actual_logits = classification_head(
         z_emb,
-        inference_inputs=dict(
-            x_keys=x_keys,
-            x_vals_all=x_vals_all,
-            padding=padding,
-        ),
+        inference_inputs=inference_inputs,
     )  # shape: [4, 2, 2]
 
     self.assertEqual(actual_logits.shape, (4, 2, 2))
@@ -227,6 +258,18 @@ class ClassificationTest(absltest.TestCase):
         ],
         dtype=torch.bool,
     )  # shape: [4, 2, 3]
+    mask = torch.ones(
+        4,
+        1,
+        2,
+        dtype=torch.bool,
+    )  # shape: [4, 1, 2]
+    missing = torch.ones(
+        4,
+        1,
+        2,
+        dtype=torch.bool,
+    )  # shape: [4, 1, 2]
     expected_logits = torch.as_tensor(
         [
             [[-3, 3, 0], [3, -3, float("-inf")]],
@@ -239,18 +282,21 @@ class ClassificationTest(absltest.TestCase):
 
     aligner = IdentityAligner()
     kv_combiner = IdentityKvCombiner()
-    classification_head = head.Classification(
-        config=head.ClassificationConfig(max_num_classes=max_num_classes),
+    classification_head = head.IngesTablesClassification(
         aligner=aligner,
         kv_combiner=kv_combiner,
+        max_num_classes=max_num_classes,
+    )
+    inference_inputs = types.IngesTablesInferenceInputs(
+        x_keys=x_keys,
+        mask=mask,
+        missing=missing,
+        x_vals_all=x_vals_all,
+        x_vals=x_vals_all,
+        padding=padding,
     )
     actual_logits = classification_head(
-        z_emb,
-        inference_inputs=dict(
-            x_keys=x_keys,
-            x_vals_all=x_vals_all,
-            padding=padding,
-        ),
+        z_emb, inference_inputs=inference_inputs
     )  # shape: [4, 2, 3]
 
     self.assertEqual(actual_logits.shape, (4, 2, 3))
@@ -269,9 +315,51 @@ class RegressionTest(absltest.TestCase):
         ],
         dtype=torch.float32,
     )  # shape: [4, 2, 3]
+    padding = torch.as_tensor(
+        [
+            [
+                [1, 1, 1],
+                [1, 1, 0],
+            ],
+            [
+                [1, 1, 1],
+                [1, 1, 0],
+            ],
+            [
+                [1, 1, 1],
+                [1, 1, 0],
+            ],
+            [
+                [1, 1, 1],
+                [1, 1, 0],
+            ],
+        ],
+        dtype=torch.bool,
+    )  # shape: [4, 2, 3]
+    mask = torch.ones(
+        4,
+        1,
+        2,
+        dtype=torch.bool,
+    )  # shape: [4, 1, 2]
+    missing = torch.ones(
+        4,
+        1,
+        2,
+        dtype=torch.bool,
+    )  # shape: [4, 1, 2]
 
-    regression_head = head.Regression(config=head.RegressionConfig(z_dim=3))
-    logits = regression_head(z_emb, inference_inputs={})  # shape: [4, 2, 1]
+    regression_head = head.IngesTablesRegression(z_dim=3)
+    logits = regression_head(
+        z_emb,
+        inference_inputs=types.IngesTablesInferenceInputs(
+            x_keys=z_emb,
+            x_vals=z_emb,
+            mask=mask,
+            missing=missing,
+            padding=padding,
+        ),
+    )  # shape: [4, 2, 1]
 
     self.assertEqual(logits.shape, (4, 2, 1))
 
