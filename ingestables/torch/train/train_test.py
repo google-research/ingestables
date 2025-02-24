@@ -86,8 +86,8 @@ class TrainTest(absltest.TestCase):
                 vanilla_transformer.TransformerLayer(
                     z_dim=24,
                     num_heads=1,
-                    dropout_attn=0.0,
-                    dropout_mlp=0.0,
+                    dropout_attn=0.1,
+                    dropout_mlp=0.1,
                 )
                 for _ in range(2)
             ],
@@ -102,21 +102,20 @@ class TrainTest(absltest.TestCase):
     )
     metrics_store = metrics.InMemoryMetricsStore()
     metrics_writer = metrics.MetricsWriter(metrics_store)
-    num_train_steps = 10
-    peak_lr = 3e-4
+    num_train_steps = 100
+    peak_lr = 3e-3
     trainer = train_lib.Trainer(  # pylint: disable=unused-variable
         workdir=self.tmp_dir,
         model=model,
-        optimizer=lambda params: torch.optim.AdamW(params, lr=peak_lr),
+        optimizer=lambda params: torch.optim.Adam(params, lr=peak_lr),
         lr_scheduler=lambda optim: lr_scheduler.LinearWarmupCosineLRScheduler(
             optim,
             max_steps=num_train_steps,
-            warmup_steps=25,
+            warmup_steps=num_train_steps // 10,
             warmup_start_lr=0,
             warmup_end_lr=peak_lr,
             peak_lr=peak_lr,
-            min_lr=1e-5,
-            simulate_lr_schedule=False,
+            min_lr=peak_lr * 0.5,
         ),
         pipeline=pipeline_lib.Pipeline(
             pipeline_modules=[
@@ -125,13 +124,17 @@ class TrainTest(absltest.TestCase):
                     dataset_name="xor",
                     splitter=scenario_generators.Splitter(random_state=13),
                     sampler=scenario_generators.Sampler(random_state=13),
-                    preprocessor=preprocessors.Preprocessor(),
+                    preprocessor=preprocessors.Preprocessor(
+                        noise=0.0,
+                        numeric_scaling_method="min-max",
+                    ),
                     encoder=encoders.Encoder(
-                        max_num_categories=8,
-                        # text_encoder=text_encoders.
+                        max_num_categories=3,
                         n_bins=3,
+                        target_encoding="llm",
+                        batch_size=32,
                         text_encoder=text_encoders.TextEncoder(
-                            text_encoder_name="stub",
+                            text_encoder_name="hash",
                             # [NOTE] MUST match the embedding_dim of the
                             # backbone.
                             embedding_dim=3,
@@ -141,16 +144,16 @@ class TrainTest(absltest.TestCase):
             ],
         ),
         num_train_steps=num_train_steps,
-        log_loss_every_steps=50,
-        eval_every_steps=100,
-        train_batch_size=100,
-        eval_batch_size=100,
-        checkpoint_every_steps=100,
+        log_loss_every_steps=num_train_steps // 5,
+        eval_every_steps=num_train_steps // 5,
+        train_batch_size=8,
+        eval_batch_size=8,
+        checkpoint_every_steps=num_train_steps,
         num_data_workers=0,
         amp_dtype=None,
         metrics_writer=metrics_writer,
         masking_strategy=masking.MaskingStrategy(
-            target_masking_prob=1.0, default_masking_prob=0.1, random_seed=13
+            target_masking_prob=1.0, default_masking_prob=0.0, random_seed=13
         ),
         load_backbone_weights=False,
         load_aligner_weights_if_available=False,
@@ -162,9 +165,21 @@ class TrainTest(absltest.TestCase):
         prefetch_factor=None,
         enable_amp=False,
     )
-    # TODO(joetoth): Fix this test.
-    # trainer.run()
-    # self.assertGreater(metrics_store.metric(0, ("xor", "cat"), "auc_pr"), 0.9)
+
+    trainer.run()
+
+    self.assertGreater(
+        metrics_store.metric(
+            step=num_train_steps, key=("xor", "cat"), metric_name="val_auc_pr"
+        ),
+        0.9,
+    )
+    self.assertGreater(
+        metrics_store.metric(
+            step=num_train_steps, key=("xor", "cat"), metric_name="test_auc_pr"
+        ),
+        0.9,
+    )
 
   def test_train_regression(self):
     model = ingestables.Model(
@@ -222,21 +237,20 @@ class TrainTest(absltest.TestCase):
 
     metrics_store = metrics.InMemoryMetricsStore()
     metrics_writer = metrics.MetricsWriter(metrics_store)
-    num_train_steps = 10
-    peak_lr = 3e-4
+    num_train_steps = 100
+    peak_lr = 3e-3
     trainer = train_lib.Trainer(  # pylint: disable=unused-variable
         workdir=self.tmp_dir,
         model=model,
-        optimizer=lambda params: torch.optim.AdamW(params, lr=peak_lr),
+        optimizer=lambda params: torch.optim.Adam(params, lr=peak_lr),
         lr_scheduler=lambda optim: lr_scheduler.LinearWarmupCosineLRScheduler(
             optim,
             max_steps=num_train_steps,
-            warmup_steps=25,
+            warmup_steps=num_train_steps // 10,
             warmup_start_lr=0,
             warmup_end_lr=peak_lr,
             peak_lr=peak_lr,
-            min_lr=1e-5,
-            simulate_lr_schedule=False,
+            min_lr=peak_lr * 0.5,
         ),
         pipeline=pipeline_lib.Pipeline(
             pipeline_modules=[
@@ -245,13 +259,16 @@ class TrainTest(absltest.TestCase):
                     dataset_name="and",
                     splitter=scenario_generators.Splitter(random_state=13),
                     sampler=scenario_generators.Sampler(random_state=13),
-                    preprocessor=preprocessors.Preprocessor(),
+                    preprocessor=preprocessors.Preprocessor(
+                        noise=0.0,
+                        numeric_scaling_method="min-max",
+                    ),
                     encoder=encoders.Encoder(
-                        max_num_categories=8,
-                        # text_encoder=text_encoders.
+                        max_num_categories=3,
                         n_bins=3,
+                        batch_size=32,
                         text_encoder=text_encoders.TextEncoder(
-                            text_encoder_name="stub",
+                            text_encoder_name="hash",
                             # [NOTE] MUST match the embedding_dim of the
                             # backbone.
                             embedding_dim=3,
@@ -261,16 +278,16 @@ class TrainTest(absltest.TestCase):
             ],
         ),
         num_train_steps=num_train_steps,
-        log_loss_every_steps=50,
-        eval_every_steps=100,
-        checkpoint_every_steps=100,
+        log_loss_every_steps=num_train_steps // 5,
+        eval_every_steps=num_train_steps // 5,
+        checkpoint_every_steps=num_train_steps // 5,
         num_data_workers=0,
         amp_dtype=None,
-        train_batch_size=100,
-        eval_batch_size=100,
+        train_batch_size=8,
+        eval_batch_size=8,
         metrics_writer=metrics_writer,
         masking_strategy=masking.MaskingStrategy(
-            target_masking_prob=1.0, default_masking_prob=0.1, random_seed=13
+            target_masking_prob=1.0, default_masking_prob=0.0, random_seed=13
         ),
         load_backbone_weights=False,
         load_aligner_weights_if_available=False,
@@ -282,16 +299,28 @@ class TrainTest(absltest.TestCase):
         prefetch_factor=None,
         enable_amp=False,
     )
-    # TODO(mononito): Fix this test.
-    # trainer.run()
-    # self.assertLess(metrics_store.metric(0, ("and", "num"), "mse"), 0.5)
+
+    trainer.run()
+
+    self.assertLess(
+        metrics_store.metric(
+            num_train_steps, ("and", "num"), "val_mean_squared_error"
+        ),
+        0.5,
+    )
+    self.assertLess(
+        metrics_store.metric(
+            num_train_steps, ("and", "num"), "test_mean_squared_error"
+        ),
+        0.5,
+    )
 
   def test_train_both(self):
     cat_aligner = aligner.TextualAligner(
-        x_key_dim=768,
-        x_val_dim=768,
-        z_key_dim=64,
-        z_val_dim=192,
+        x_key_dim=3,
+        x_val_dim=3,
+        z_key_dim=8,
+        z_val_dim=16,
         key_aligner="simple",
         key_bias=False,
         key_activation_fn=None,
@@ -304,10 +333,10 @@ class TrainTest(absltest.TestCase):
         aligners={
             "cat": cat_aligner,
             "num": aligner.NumericAligner(
-                x_key_dim=768,
-                x_val_dim=768,
-                z_key_dim=64,
-                z_val_dim=192,
+                x_key_dim=3,
+                x_val_dim=3,
+                z_key_dim=8,
+                z_val_dim=16,
                 key_aligner="simple",
                 key_bias=False,
                 key_activation_fn=None,
@@ -317,8 +346,8 @@ class TrainTest(absltest.TestCase):
             ),
         },
         special_tokens={
-            "cat": generic_embeddings.IngesTablesSpecialTokens(z_val_dim=192),
-            "num": generic_embeddings.IngesTablesSpecialTokens(z_val_dim=192),
+            "cat": generic_embeddings.IngesTablesSpecialTokens(z_val_dim=16),
+            "num": generic_embeddings.IngesTablesSpecialTokens(z_val_dim=16),
         },
         kv_combiner={
             "cat": kv_combiner_lib.Concatenate(),
@@ -327,10 +356,10 @@ class TrainTest(absltest.TestCase):
         backbone=vanilla_transformer.Transformer(
             layers=[
                 vanilla_transformer.TransformerLayer(
-                    z_dim=256,
+                    z_dim=24,
                     num_heads=1,
-                    dropout_attn=0.0,
-                    dropout_mlp=0.0,
+                    dropout_attn=0.1,
+                    dropout_mlp=0.1,
                 )
                 for _ in range(2)
             ],
@@ -341,26 +370,25 @@ class TrainTest(absltest.TestCase):
                 kv_combiner=kv_combiner,
                 max_num_classes=2,
             ),
-            "num": head.IngesTablesRegression(z_dim=256),
+            "num": head.IngesTablesRegression(z_dim=24),
         },
     )
     metrics_store = metrics.InMemoryMetricsStore()
     metrics_writer = metrics.MetricsWriter(metrics_store)
-    num_train_steps = 10
-    peak_lr = 3e-4
+    num_train_steps = 200
+    peak_lr = 3e-3
     trainer = train_lib.Trainer(  # pylint: disable=unused-variable
         workdir=self.tmp_dir,
         model=model,
-        optimizer=lambda params: torch.optim.AdamW(params, lr=peak_lr),
+        optimizer=lambda params: torch.optim.Adam(params, lr=peak_lr),
         lr_scheduler=lambda optim: lr_scheduler.LinearWarmupCosineLRScheduler(
             optim,
             max_steps=num_train_steps,
-            warmup_steps=25,
+            warmup_steps=num_train_steps // 10,
             warmup_start_lr=0,
             warmup_end_lr=peak_lr,
             peak_lr=peak_lr,
-            min_lr=1e-5,
-            simulate_lr_schedule=False,
+            min_lr=peak_lr * 0.5,
         ),
         pipeline=pipeline_lib.Pipeline(
             pipeline_modules=[
@@ -369,32 +397,57 @@ class TrainTest(absltest.TestCase):
                     dataset_name="xor",
                     splitter=scenario_generators.Splitter(random_state=13),
                     sampler=scenario_generators.Sampler(random_state=13),
-                    preprocessor=preprocessors.Preprocessor(),
+                    preprocessor=preprocessors.Preprocessor(
+                        noise=0.0,
+                        numeric_scaling_method="min-max",
+                    ),
                     encoder=encoders.Encoder(
-                        max_num_categories=8,
-                        # text_encoder=text_encoders.
-                        n_bins=768,
+                        max_num_categories=3,
+                        target_encoding="llm",
+                        n_bins=3,
+                        batch_size=32,
                         text_encoder=text_encoders.TextEncoder(
-                            text_encoder_name="stub",
+                            text_encoder_name="hash",
                             # [NOTE] MUST match the embedding_dim of the
                             # backbone.
-                            embedding_dim=768,
+                            embedding_dim=3,
+                        ),
+                    ),
+                ),
+                pipeline_lib.PipelineModule(
+                    benchmark_name="test",
+                    dataset_name="and",
+                    splitter=scenario_generators.Splitter(random_state=13),
+                    sampler=scenario_generators.Sampler(random_state=13),
+                    preprocessor=preprocessors.Preprocessor(
+                        noise=0.0,
+                        numeric_scaling_method="min-max",
+                    ),
+                    encoder=encoders.Encoder(
+                        max_num_categories=3,
+                        n_bins=3,
+                        batch_size=32,
+                        text_encoder=text_encoders.TextEncoder(
+                            text_encoder_name="hash",
+                            # [NOTE] MUST match the embedding_dim of the
+                            # backbone.
+                            embedding_dim=3,
                         ),
                     ),
                 ),
             ],
         ),
         num_train_steps=num_train_steps,
-        train_batch_size=100,
-        eval_batch_size=100,  # TODO(joetoth): Bug when eval =! train.
-        log_loss_every_steps=50,
-        eval_every_steps=100,
-        checkpoint_every_steps=100,
+        train_batch_size=8,
+        eval_batch_size=8,  # TODO(joetoth): Bug when eval =! train.
+        log_loss_every_steps=num_train_steps // 5,
+        eval_every_steps=num_train_steps // 5,
+        checkpoint_every_steps=num_train_steps,
         num_data_workers=0,
         amp_dtype=None,
         metrics_writer=metrics_writer,
         masking_strategy=masking.MaskingStrategy(
-            target_masking_prob=1.0, default_masking_prob=0.1, random_seed=13
+            target_masking_prob=1.0, default_masking_prob=0.0, random_seed=13
         ),
         load_backbone_weights=False,
         load_aligner_weights_if_available=False,
@@ -407,10 +460,32 @@ class TrainTest(absltest.TestCase):
         enable_amp=False,
     )
 
-    # TODO(joetoth): Fix this test.
-    # trainer.run()
-    # self.assertGreater(metrics_store.metric(0, ("xor", "cat"), "auc_pr"), 0.9)
-    # self.assertLess(metrics_store.metric(0, ("and", "num"), "mse"), 0.9)
+    trainer.run()
+
+    self.assertGreater(
+        metrics_store.metric(
+            step=num_train_steps, key=("xor", "cat"), metric_name="val_auc_pr"
+        ),
+        0.9,
+    )
+    self.assertGreater(
+        metrics_store.metric(
+            step=num_train_steps, key=("xor", "cat"), metric_name="test_auc_pr"
+        ),
+        0.9,
+    )
+    self.assertLess(
+        metrics_store.metric(
+            num_train_steps, ("and", "num"), "val_mean_squared_error"
+        ),
+        0.5,
+    )
+    self.assertLess(
+        metrics_store.metric(
+            num_train_steps, ("and", "num"), "test_mean_squared_error"
+        ),
+        0.5,
+    )
 
 
 if __name__ == "__main__":

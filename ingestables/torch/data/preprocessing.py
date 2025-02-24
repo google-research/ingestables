@@ -340,7 +340,7 @@ def scale_numeric_features(
 
   ai, bi = None, None
   if scaling_method == "mean":
-    bi = 0
+    bi = 0.0
     ai = np.nanmean(np.abs(train_num_arr), axis=0, keepdims=True)
   elif scaling_method == "min-max":
     bi = np.nanmin(np.abs(train_num_arr), axis=0, keepdims=True)

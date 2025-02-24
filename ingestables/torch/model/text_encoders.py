@@ -396,12 +396,12 @@ class _ST5TokenizerEncoder(nn.Module):
     return sentence_embeddings.detach().cpu()
 
 
-class _StubTokenizerEncoder(nn.Module):
+class _HashTokenizerEncoder(nn.Module):
   """Stub tokenizer encoder."""
 
   def __init__(
       self,
-      text_encoder_name: str = "stub",
+      text_encoder_name: str = "hash",
       do_lower_case: bool = False,
       max_seq_length: int = 512,
       vocab_size: int | None = None,
@@ -410,12 +410,20 @@ class _StubTokenizerEncoder(nn.Module):
   ):
     super().__init__()
     self.embedding_dim = embedding_dim
+    self._num_buckets = 1024
+    self._random_matrix = torch.rand(
+        self._num_buckets, self.embedding_dim, dtype=torch.float32
+    )
 
   def forward(
       self,
       batch: list[str] | torch.Tensor,
   ) -> torch.Tensor:
-    return torch.ones(len(batch), self.embedding_dim)
+    if isinstance(batch, torch.Tensor):
+      raise ValueError("Stub tokenizer encoder does not support torch.Tensor.")
+
+    res = [self._random_matrix[hash(x) % self._num_buckets] for x in batch]
+    return torch.stack(res)
 
 
 class TokenizerEncoderName(enum.Enum):
@@ -423,7 +431,7 @@ class TokenizerEncoderName(enum.Enum):
 
   ST5 = "st5"
   TRANSTAB = "TransTabWordEmbedding"
-  STUB = "stub"
+  HASH = "hash"
 
 
 def _create_tokenizer_encoder(
@@ -456,8 +464,8 @@ def _create_tokenizer_encoder(
         vocab_size,
         use_fast,
     )
-  elif text_encoder_name == TokenizerEncoderName.STUB.value:
-    return _StubTokenizerEncoder(
+  elif text_encoder_name == TokenizerEncoderName.HASH.value:
+    return _HashTokenizerEncoder(
         text_encoder_name,
         do_lower_case,
         max_seq_length,

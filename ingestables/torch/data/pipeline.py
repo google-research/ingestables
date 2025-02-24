@@ -23,7 +23,7 @@ Raw data (CSV)
 """
 
 import dataclasses
-from typing import Tuple, cast
+from typing import Literal, Tuple, cast
 
 from absl import logging
 from ingestables.torch import types
@@ -38,7 +38,7 @@ from torch.utils import data
 class PipelineModule:
   """Holds the components that make up part of the data pipeline."""
 
-  benchmark_name: str
+  benchmark_name: Literal["carte", "ingestables", "test"]
   dataset_name: str
   splitter: scenario_generators.Splitter
   sampler: scenario_generators.Sampler
@@ -187,6 +187,7 @@ class Pipeline:
     df, task_info = data_loaders.load_dataset_from_benchmark(
         module.benchmark_name, module.dataset_name
     )
+    logging.info("Loaded dataset: %s", df.head())
 
     # TODO(joetoth): Add support for unsupervised tasks. Splitters and samplers
     # don't work for unsupervised tasks. Refactor to support unsupervised tasks.

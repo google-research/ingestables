@@ -6,7 +6,7 @@ description = "IngesTables: A Recipe for Tabular Foundation Models"
 readme = "README.md"
 requires-python = ">=3.8"
 license = {file = "LICENSE"}
-authors = [{name = "ingestables authors", email="ingestables-team@google.com"}]
+authors = [{name = "IngesTables team", email="ingestables-team@google.com"}]
 classifiers = [  # List of https://pypi.org/classifiers/
     "License :: OSI Approved :: Apache Software License",
     "Intended Audience :: Science/Research",

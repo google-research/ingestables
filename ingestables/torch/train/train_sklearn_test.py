@@ -16,7 +16,6 @@ import shutil
 import tempfile
 
 from absl.testing import absltest
-from absl.testing import parameterized
 from ingestables.torch.data import encoders
 from ingestables.torch.data import pipeline as pipeline_lib
 from ingestables.torch.data import preprocessors
@@ -29,7 +28,7 @@ from ingestables.torch.train import train_sklearn
 from sklearn import linear_model
 
 
-class TrainTest(parameterized.TestCase):
+class TrainTest(absltest.TestCase):
 
   def setUp(self):
     super().setUp()
@@ -39,13 +38,9 @@ class TrainTest(parameterized.TestCase):
     super().tearDown()
     shutil.rmtree(self.tmp_dir)
 
-  @parameterized.parameters(
-      (linear_model.LogisticRegression,),
-      # (linear_model.LinearRegression,),
-  )
-  def test_train_classification(self, model_cls):
+  def test_train_classification(self):
     model = sklearn_model.SklearnModel(
-        model_cls(), head.SklearnClassification()
+        linear_model.LogisticRegression(), head.SklearnClassification()
     )
 
     pipeline = pipeline_lib.Pipeline(
@@ -60,7 +55,7 @@ class TrainTest(parameterized.TestCase):
                 preprocessor=preprocessors.Preprocessor(),
                 encoder=encoders.Encoder(
                     text_encoder=text_encoders.TextEncoder(
-                        text_encoder_name="stub"
+                        text_encoder_name="hash"
                     )
                 ),
             ),

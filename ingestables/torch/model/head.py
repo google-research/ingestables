@@ -181,10 +181,9 @@ class IngesTablesClassification(nn.Module):
     auc_roc = sklearn_metrics.roc_auc_score(
         y_true, y_probs[:, 1], multi_class="ovr", average="macro"
     )
-    if y_probs.shape[-1] == 2:
-      auc_pr = sklearn_metrics.average_precision_score(y_true, y_probs[:, 1])
-    else:
-      auc_pr = None
+    auc_pr = sklearn_metrics.average_precision_score(
+        y_true, y_probs[:, 1], average="macro"
+    )
 
     return types.ClassificationMetrics(
         accuracy=accuracy,

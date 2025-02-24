@@ -128,7 +128,7 @@ backbone_size_to_dim = {
 
 @auto_config.auto_config
 def full_base_config(
-    benchmark_name: str = "carte",
+    benchmark_name: Literal["carte", "ingestables", "test"] = "carte",
     dataset_name: str = "cardekho",
     num_train_steps: int = 5000,
     text_embedding_size: Literal["base", "large", "xl", "xxl"] = "xl",
@@ -323,7 +323,7 @@ def full_base_config(
 
 def add_pretraining_pipeline_modules(
     basic_pipeline_module: pipeline.PipelineModule,
-    benchmark_name: str = "carte",
+    benchmark_name: Literal["carte", "ingestables", "test"] = "carte",
     pretraining_dataset_names: Tuple[
         str, ...
     ] = GENERIC_PRETRAINING_DATASET_NAMES,
@@ -1159,7 +1159,7 @@ def ft_transformer_config(
 
 @auto_config.auto_config
 def basic_deep_trainer(
-    benchmark_name: str = "carte",
+    benchmark_name: Literal["carte", "ingestables", "test"] = "carte",
     dataset_name: str = "cardekho",
     num_train_steps: int = 10000,
 ) -> train_deep.Trainer:
@@ -1278,7 +1278,7 @@ def ft_transformer_regression_experiment():
 
 @auto_config.auto_config
 def tabllm_trainer(
-    benchmark_name: str = "carte",
+    benchmark_name: Literal["carte", "ingestables", "test"] = "carte",
     dataset_name: str = "cardekho",
 ) -> train_sklearn.Trainer:
   """Makes a basic fiddle config for training tabllm models."""
@@ -1345,7 +1345,7 @@ def tabllm_random_forest_regression_experiment():
 @auto_config.auto_config
 def sklearn_trainer(
     model: sklearn_model.SklearnModel,
-    benchmark_name: str = "carte",
+    benchmark_name: Literal["carte", "ingestables", "test"] = "carte",
     dataset_name: str = "cardekho",
 ) -> train_sklearn.Trainer:
   """Makes a basic fiddle config for training sklearn models."""
@@ -1383,7 +1383,7 @@ def sklearn_trainer(
 @auto_config.auto_config
 def sklearn_experiment(
     model: sklearn_model.SklearnModel,
-    benchmark_name: str = "carte",
+    benchmark_name: Literal["carte", "ingestables", "test"] = "carte",
     dataset_name: str = "cardekho",
 ):
   """Makes a basic fiddle config for training sklearn models."""

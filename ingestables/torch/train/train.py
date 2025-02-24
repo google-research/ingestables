@@ -765,11 +765,13 @@ class Trainer:
 
   def run(self) -> None:
     """Train, evaluate, and save checkpoints."""
-    for step in range(self._num_train_steps):
+    for step in range(self._num_train_steps + 1):
       self._train_step_count = step
-      is_last_step = step >= self._num_train_steps - 1
+      is_last_step = step >= self._num_train_steps
 
       dataset_key, batch = self._get_training_batch(step)
+      if step < 5:
+        logging.info("Training batch: %s", batch)
       self._train_step(dataset_key, batch)
       self._lr_scheduler.step()
 

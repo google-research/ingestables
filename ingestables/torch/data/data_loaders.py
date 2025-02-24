@@ -149,15 +149,15 @@ INGESTABLES_CLASSIFICATION_DATASETS = [
 # --------------------------------------------------------------------------
 
 XorDataFrame = pd.DataFrame({
-    "x1": np.array([0.0, 0, 1, 1] * 1000),
-    "x2": np.array([0.0, 1, 0, 1] * 1000),
-    "y": np.array(["0", "1", "1", "0"] * 1000),
+    "x1": np.tile(np.asarray([0, 0, 1, 1], dtype=np.float32), 1000),
+    "x2": np.tile(np.asarray([0, 1, 0, 1], dtype=np.float32), 1000),
+    "y": np.tile(np.asarray(["0", "1", "1", "0"], dtype=np.str_), 1000),
 })
 
 AndDataFrame = pd.DataFrame({
-    "x1": [0, 0, 1, 1] * 1000,
-    "x2": [0, 1, 0, 1] * 1000,
-    "y": ["1", "0", "0", "1"] * 1000,
+    "x1": np.tile(np.asarray([0, 0, 1, 1], dtype=np.float32), 1000),
+    "x2": np.tile(np.asarray([0, 1, 0, 1], dtype=np.float32), 1000),
+    "y": np.tile(np.asarray([1, 0, 0, 1], dtype=np.float32), 1000),
 })
 
 StocksDataFrame = pd.DataFrame({
@@ -193,9 +193,8 @@ def load_test_dataset(
     )
   elif dataset_name == "and":
     return AndDataFrame, types.create_task_info(
-        task_type="classification",
+        task_type="regression",
         target_key="y",
-        target_classes=["0", "1"],
         dataset_name="and",
     )
   elif dataset_name == "stocks":
@@ -276,19 +275,19 @@ def load_ingestables_dataset(
   return ingestables_dataset_name_to_class[dataset_name]()
 
 
-benchmark_name_to_class = {
-    "carte": load_carte_dataset,
-    "ingestables": load_ingestables_dataset,
-    "test": load_test_dataset,
-}
-
-
 def load_dataset_from_benchmark(
-    benchmark_name: str | Literal["carte", "ingestables"],
+    benchmark_name: Literal["carte", "ingestables", "test"],
     dataset_name: str,
 ) -> Tuple[pd.DataFrame, types.TaskInfo]:
   """Load a dataset from a benchmark."""
-  return benchmark_name_to_class[benchmark_name](dataset_name)
+  if benchmark_name == "test":
+    return load_test_dataset(dataset_name)
+  elif benchmark_name == "carte":
+    return load_carte_dataset(dataset_name)
+  elif benchmark_name == "ingestables":
+    return load_ingestables_dataset(dataset_name)
+  else:
+    raise ValueError(f"Unknown benchmark {benchmark_name}")
 
 
 def get_dataset_names_in_benchmark(
