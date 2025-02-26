@@ -14,8 +14,9 @@
 
 """IngesTables model."""
 
-import logging
 from typing import Dict, List, Optional, Tuple
+
+from absl import logging
 from etils import epath
 from ingestables.torch import types
 from ingestables.torch.model.backbones import t5_transformer  # pylint: disable=g-importing-member
@@ -82,6 +83,7 @@ class Encoder(nn.Module):
     self.special_tokens = nn.ModuleDict(special_tokens)
     self.kv_combiner = kv_combiner
     self.backbone = backbone
+    self._missing_aligner_keys = set()
 
   def forward(
       self,
@@ -103,7 +105,9 @@ class Encoder(nn.Module):
     for aligner_key, aligner_fn in self.aligners.items():
       # [NOTE] We might not have numeric, categorical, or string features.
       if aligner_key not in inference_inputs:
-        logging.info("No inference inputs for aligner key: %s", aligner_key)
+        if aligner_key not in self._missing_aligner_keys:
+          logging.warn("No inference inputs for aligner key: %s", aligner_key)
+          self._missing_aligner_keys.add(aligner_key)
         continue
       z_emb_keys.append(aligner_key)
       z_key_emb, z_val_emb = aligner_fn(
@@ -198,9 +202,6 @@ class Model(nn.Module):
         set(self.heads.keys())
         & set(inference_inputs.keys())
         & set(z_embs.keys())
-    )
-    logging.info(
-        "heads_keys_to_compute_logits: %s", heads_keys_to_compute_logits
     )
     for key in heads_keys_to_compute_logits:
       logits_dict[key] = self.heads[key](z_embs[key], inference_inputs[key])

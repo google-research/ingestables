@@ -580,14 +580,6 @@ class Trainer:
       if key in training_inputs:
         training_inputs[key].loss_weights = loss_weights
 
-      if target_available:
-        logging.info(
-            "Generated target-aware mask since task_type is `%s` and"
-            " inference_inputs[key] is `%s`",
-            task_info.task_type,
-            key,
-        )
-
     return inference_inputs, training_inputs
 
   def _train_step(
@@ -602,9 +594,6 @@ class Trainer:
     # dataset_key = list(self._pipeline.dataset_keys)[0]
 
     task_info = self._pipeline.get_task_info(dataset_key)
-    logging.info(
-        "Training step %s on dataset: %s", self._train_step_count, dataset_key
-    )
     inference_inputs, training_inputs = self._format_inputs(batch)
 
     # Mask training and inference inputs
@@ -765,24 +754,25 @@ class Trainer:
 
   def run(self) -> None:
     """Train, evaluate, and save checkpoints."""
+    # steps are 0 indexed. num_train_steps is usually a nice round number.
+    # We want the final step to be step=num_train_steps, so that the final
+    # checkpoint name looks nice instead of being step=num_train_steps-1.
     for step in range(self._num_train_steps + 1):
       self._train_step_count = step
-      is_last_step = step >= self._num_train_steps
+      is_last_step = (step == self._num_train_steps + 1)
 
       dataset_key, batch = self._get_training_batch(step)
       if step < 5:
         logging.info("Training batch: %s", batch)
       self._train_step(dataset_key, batch)
       self._lr_scheduler.step()
-
-      logging.info("Learning rate: %s", self._lr_scheduler.get_last_lr())
-      self._metrics_writer.write_metric(
-          self._train_step_count,
-          (dataset_key,),
-          "learning_rate",
-          self._lr_scheduler.get_last_lr()[0],
-      )
-
+      if step % self._log_loss_every_steps == 0 or is_last_step:
+        self._metrics_writer.write_metric(
+            self._train_step_count,
+            (dataset_key,),
+            "learning_rate",
+            self._lr_scheduler.get_last_lr()[0],
+        )
       if step % self._eval_every_steps == 0 or is_last_step:
         self._evaluate("test", self._test_dataloaders)
         self._evaluate("val", self._val_dataloaders)

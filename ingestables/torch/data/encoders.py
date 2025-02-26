@@ -16,10 +16,9 @@
 
 import copy
 import dataclasses
-import logging
 from typing import Dict, List, Literal, Optional, Tuple
-import warnings
 
+from absl import logging
 from etils import etree
 from ingestables.torch import types
 from ingestables.torch.data import encoding
@@ -401,7 +400,7 @@ class Encoder:
         if n_train_cat_vals != n_test_cat_vals:
           # [NOTE] We can handle different number of entities.
           # TODO(mononito): Improve handling for IngesTables.
-          warnings.warn(
+          logging.warn(
               "Train and test sets have different number of entities: %s"
           )
 
@@ -498,7 +497,7 @@ class Encoder:
         self.target_encoding == "raw"
         and task_info.task_type == "classification"
     ):
-      warnings.warn(
+      logging.warn(
           "Raw target encoding is not supported for classification tasks."
           " Setting to `label_encoding`."
       )
@@ -508,7 +507,7 @@ class Encoder:
         self.target_encoding == "label_encoding"
         and task_info.task_type == "regression"
     ):
-      warnings.warn(
+      logging.warn(
           "Label encoding is not supported for regression tasks. Setting to"
           " `raw`."
       )
