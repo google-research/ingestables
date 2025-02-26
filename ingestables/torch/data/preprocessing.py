@@ -17,7 +17,6 @@
 import re
 import string
 from typing import Any, Dict, List, Literal, Optional
-import warnings
 
 from absl import logging
 from ingestables.torch.data import utils
@@ -723,20 +722,22 @@ def validate_bins(
           f" However, for {i=}: {len(bins[i])=}"
       )
     if not np.isfinite(feature_bins).all() and not suppress_warnings:
-      warnings.warn(
+      logging.warn(
           "Bin edges must not contain nan/inf/-inf."
-          f" However, this is not true for the {i}-th feature."
-          " This may be because of computed bins < n_bins"
+          " However, this is not true for the %d-th feature."
+          " This may be because of computed bins < n_bins",
+          i,
       )
     if (feature_bins[:-1] >= feature_bins[1:]).any():
       raise ValueError(
-          f"Bin edges must be sorted. However, the for the {i}-th feature, the"
-          + f" bin edges {feature_bins} and  are not sorted"
+          "Bin edges must be sorted. However, the for the %d-th feature, the "
+          + f"bin edges {feature_bins} and are not sorted"
       )
     if len(feature_bins) == 2:
-      warnings.warn(
-          f"The {i}-th feature has just two bin edges, which means only one"
+      logging.warn(
+          "The %d-th feature has just two bin edges, which means only one"
           " bin. Strictly speaking, using a single bin for the"
           " piecewise-linear encoding should not break anything, but it is the"
-          " same as using sklearn.preprocessing.MinMaxScaler"
+          " same as using sklearn.preprocessing.MinMaxScaler",
+          i,
       )

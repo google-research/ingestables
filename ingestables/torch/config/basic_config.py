@@ -16,9 +16,9 @@
 
 import copy
 import functools
-import logging
 from typing import List, Literal, Tuple
 
+from absl import logging
 from etils import epath
 from fiddle.experimental import auto_config
 from ingestables.torch import tabular_foundation_lab
@@ -273,11 +273,11 @@ def full_base_config(
           enable_amp=True,
           amp_dtype=torch.bfloat16,  # Only support in A100 GPUs and above
           train_batch_size=128,
-          eval_batch_size=512,
+          eval_batch_size=128,
           num_train_steps=num_train_steps,
-          log_loss_every_steps=10,
-          eval_every_steps=20,  # There are approximately 20 datasets.
-          checkpoint_every_steps=100,
+          log_loss_every_steps=num_train_steps // 5,
+          eval_every_steps=num_train_steps // 5,  # There are ~20 datasets.
+          checkpoint_every_steps=num_train_steps // 5,
           num_data_workers=0,
           prefetch_factor=None,
           metrics_writer=default_metrics_writer(),
@@ -1211,9 +1211,9 @@ def basic_deep_trainer(
       enable_amp=False,
       amp_dtype=None,
       num_train_steps=num_train_steps,
-      log_loss_every_steps=10,
-      eval_every_steps=10,
-      checkpoint_every_steps=100,
+      log_loss_every_steps=num_train_steps // 5,
+      eval_every_steps=num_train_steps // 5,
+      checkpoint_every_steps=num_train_steps // 5,
       num_data_workers=0,
       prefetch_factor=None,
       metrics_writer=default_metrics_writer(),

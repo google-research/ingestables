@@ -17,7 +17,6 @@
 import collections
 from typing import Protocol
 
-from absl import logging
 from ingestables.torch import types
 import numpy as np
 import tensorflow as tf
@@ -113,7 +112,6 @@ class MetricsWriter:
       metrics: dict[str, float],
   ):
     """Writes tensorboard summary."""
-    logging.info("Writing step: %s, key: %s, metrics: %s", step, key, metrics)
     self._store.write_metrics(step, key, metrics)
 
   def write_metric(
@@ -138,13 +136,4 @@ class MetricsWriter:
         for k, v in metrics_type.metrics_dict().items()
         if v
     }
-    logging.info(
-        "Writing step: %s, dataset_type: %s, dataset_key: %s, head_key: %s,"
-        " metrics: %s",
-        step,
-        dataset_type,
-        dataset_key,
-        metrics_type.head_key,
-        metrics,
-    )
     self.write_metrics(step, (dataset_key, metrics_type.head_key), metrics)
