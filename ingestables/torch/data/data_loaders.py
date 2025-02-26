@@ -74,22 +74,6 @@ APPROVED_CARTE_DATASETS = [
     "yelp",
     "zomato",
 ]
-
-# [NOTE] The following datasets have unknown license. We should be careful when
-# using these datasets.
-CARTE_DATASETS_UNKNOWN_LICENSE = [
-    "coffee_ratings",
-    "company_employees",
-    "journal_jcr",
-    "mlds_salaries",
-    "museums",
-    "used_cars_saudi_arabia",
-    "us_presidential",
-    "used_cars_24",
-    "used_cars_benz_italy",
-    "whisky",
-]
-
 CARTE_REGRESSION_DATASETS = [
     "anime_planet",
     "babies_r_us",
@@ -292,14 +276,11 @@ def load_dataset_from_benchmark(
 
 def get_dataset_names_in_benchmark(
     benchmark_name: Literal["carte", "ingestables"],
-    approved_datasets_only: bool = False,
     problem_type: Literal["all", "regression", "classification"] = "all",
 ) -> List[str]:
   """Get dataset names in a benchmark."""
   if benchmark_name == "carte":
     carte_datasets = copy.deepcopy(APPROVED_CARTE_DATASETS)
-    if not approved_datasets_only:
-      carte_datasets += CARTE_DATASETS_UNKNOWN_LICENSE
     if problem_type == "regression":
       carte_datasets = [
           dataset
