@@ -731,7 +731,7 @@ class Encoder:
         encoded_categorical["test"] = torch.stack(test_vals_encs, dim=1)
 
     elif self.categorical_encoding == "one_hot":
-      one_hot_encoder = sklearn_preprocessing.OneHotEncoder(
+      one_hot_encoder = sklearn_preprocessing.OneHotEncoder(  # pytype: disable=wrong-keyword-args  # sklearn-update
           sparse=False,
           handle_unknown="ignore",
       )
