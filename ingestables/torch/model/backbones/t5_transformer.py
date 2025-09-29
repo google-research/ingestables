@@ -1,4 +1,4 @@
-# Copyright 2024 The ingestables Authors.
+# Copyright 2025 The ingestables Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -39,6 +39,7 @@ from torch import nn
 from transformers import configuration_utils
 from transformers import file_utils
 from transformers import modeling_utils
+from transformers import pytorch_utils
 from transformers.utils import logging
 
 
@@ -216,14 +217,14 @@ class T5Attention(nn.Module):
   def prune_heads(self, heads):
     if len(heads) == 0:  #  pylint: disable=g-explicit-length-test
       return
-    heads, index = modeling_utils.find_pruneable_heads_and_indices(
+    heads, index = pytorch_utils.find_pruneable_heads_and_indices(
         heads, self.n_heads, self.key_value_proj_dim, self.pruned_heads
     )
     # Prune linear layers
-    self.q = modeling_utils.prune_linear_layer(self.q, index)
-    self.k = modeling_utils.prune_linear_layer(self.k, index)
-    self.v = modeling_utils.prune_linear_layer(self.v, index)
-    self.o = modeling_utils.prune_linear_layer(self.o, index, dim=1)
+    self.q = pytorch_utils.prune_linear_layer(self.q, index)
+    self.k = pytorch_utils.prune_linear_layer(self.k, index)
+    self.v = pytorch_utils.prune_linear_layer(self.v, index)
+    self.o = pytorch_utils.prune_linear_layer(self.o, index, dim=1)
     # Update hyper params
     self.n_heads = self.n_heads - len(heads)
     self.inner_dim = self.key_value_proj_dim * self.n_heads
