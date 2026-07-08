@@ -1,4 +1,4 @@
-# Copyright 2025 The ingestables Authors.
+# Copyright 2026 The ingestables Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -96,7 +96,7 @@ def flatten_dict(d: dict[str, Any], prefix: str = "") -> dict[str, Any]:
 def concatenate_metrics_kwargs(
     metrics_dict: dict[str, Any],
 ) -> dict[str, Any]:
-  return etree.map(
+  return etree.map(  # pyrefly: ignore[bad-return]
       torch.concat,
       metrics_dict,
       is_leaf=lambda x: isinstance(x, list),
@@ -209,10 +209,10 @@ def move_to_device(
   if inference_inputs is not None:
     for key, inference_input in inference_inputs.items():
       if inference_input is None:
-        inference_inputs[key] = None
+        inference_inputs[key] = None  # pyrefly: ignore[unsupported-operation]
       else:
-        inference_inputs[key] = types.IngesTablesInferenceInputs(
-            **etree.map(
+        inference_inputs[key] = types.IngesTablesInferenceInputs(  # pyrefly: ignore[missing-argument]
+            **etree.map(  # pyrefly: ignore[bad-unpacking]
                 lambda x: x.to(device) if x is not None else None,
                 dataclasses.asdict(inference_input),
             )
@@ -220,10 +220,10 @@ def move_to_device(
   if training_inputs is not None:
     for key, training_input in training_inputs.items():
       if training_input is None:
-        training_inputs[key] = None
+        training_inputs[key] = None  # pyrefly: ignore[unsupported-operation]
       else:
         training_inputs[key] = types.IngesTablesTrainingInputs(
-            **etree.map(
+            **etree.map(  # pyrefly: ignore[bad-unpacking]
                 lambda x: x.to(device) if x is not None else None,
                 dataclasses.asdict(training_input),
             )

@@ -1,4 +1,4 @@
-# Copyright 2025 The ingestables Authors.
+# Copyright 2026 The ingestables Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ from ingestables.torch import types
 
 
 @dataclasses.dataclass(kw_only=True)
-class FeatureDescription(Protocol):
+class FeatureDescription(Protocol):  # pyrefly: ignore[bad-class-definition]
   feature_type: str
   feature_name: str
   feature_description: Optional[str] = None

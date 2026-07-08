@@ -1,4 +1,4 @@
-# Copyright 2025 The ingestables Authors.
+# Copyright 2026 The ingestables Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -540,13 +540,13 @@ class T5EncoderModel(T5PreTrainedModel):
       z_emb=None,
       attention_mask=None,
   ):
-    input_shape = z_emb.size()[:-1]
+    input_shape = z_emb.size()[:-1]  # pyrefly: ignore[missing-attribute]
     batch_size, seq_length = input_shape
 
     if attention_mask is None:
-      attention_mask = torch.ones(batch_size, seq_length).to(z_emb.device)
+      attention_mask = torch.ones(batch_size, seq_length).to(z_emb.device)  # pyrefly: ignore[missing-attribute]
     extended_attention_mask = self.get_extended_attention_mask(
-        attention_mask, input_shape, z_emb.device
+        attention_mask, input_shape, z_emb.device  # pyrefly: ignore[missing-attribute]
     )
 
     # Prepare head mask if needed

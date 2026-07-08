@@ -1,4 +1,4 @@
-# Copyright 2025 The ingestables Authors.
+# Copyright 2026 The ingestables Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -87,7 +87,7 @@ class IngesTablesClassification(nn.Module):
     # x_vals_all.shape: [batch, num_cat_feats, max_num_classes, x_val_dim]
     padding = inference_inputs.padding
     # Expand x_key_embs [..., x_key_dim] -> [..., max_num_classes, x_key_dim].
-    expected_shape = x_vals_all.shape[:-1] + (-1,)  # pylint: disable=attribute-error
+    expected_shape = x_vals_all.shape[:-1] + (-1,)  # pylint: disable=attribute-error  # pyrefly: ignore[missing-attribute]
     # expected_shape = [batch_size, num_cat_feats, max_num_classes, -1]
     x_keys = x_keys.unsqueeze(-2)  # pylint: disable=attribute-error
     # x_keys.shape: [batch, num_cat_feats, 1, x_key_dim]

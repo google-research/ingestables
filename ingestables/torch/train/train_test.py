@@ -1,4 +1,4 @@
-# Copyright 2025 The ingestables Authors.
+# Copyright 2026 The ingestables Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -108,7 +108,7 @@ class TrainTest(absltest.TestCase):
         workdir=self.tmp_dir,
         model=model,
         optimizer=lambda params: torch.optim.Adam(params, lr=peak_lr),
-        lr_scheduler=lambda optim: lr_scheduler.LinearWarmupCosineLRScheduler(
+        lr_scheduler=lambda optim: lr_scheduler.LinearWarmupCosineLRScheduler(  # pyrefly: ignore[bad-argument-type]
             optim,
             max_steps=num_train_steps,
             warmup_steps=num_train_steps // 10,
@@ -243,7 +243,7 @@ class TrainTest(absltest.TestCase):
         workdir=self.tmp_dir,
         model=model,
         optimizer=lambda params: torch.optim.Adam(params, lr=peak_lr),
-        lr_scheduler=lambda optim: lr_scheduler.LinearWarmupCosineLRScheduler(
+        lr_scheduler=lambda optim: lr_scheduler.LinearWarmupCosineLRScheduler(  # pyrefly: ignore[bad-argument-type]
             optim,
             max_steps=num_train_steps,
             warmup_steps=num_train_steps // 10,
@@ -381,7 +381,7 @@ class TrainTest(absltest.TestCase):
         workdir=self.tmp_dir,
         model=model,
         optimizer=lambda params: torch.optim.Adam(params, lr=peak_lr),
-        lr_scheduler=lambda optim: lr_scheduler.LinearWarmupCosineLRScheduler(
+        lr_scheduler=lambda optim: lr_scheduler.LinearWarmupCosineLRScheduler(  # pyrefly: ignore[bad-argument-type]
             optim,
             max_steps=num_train_steps,
             warmup_steps=num_train_steps // 10,

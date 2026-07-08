@@ -1,4 +1,4 @@
-# Copyright 2025 The ingestables Authors.
+# Copyright 2026 The ingestables Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -144,7 +144,7 @@ class FTTransformerLinearActEmbeddings(nn.Sequential):
   def __init__(
       self, n_features: int, d_embedding: int = 64, activation_fn: str = 'relu'
   ):
-    super().__init__(
+    super().__init__(  # pyrefly: ignore[no-matching-overload]
         collections.OrderedDict([
             (
                 'linear',

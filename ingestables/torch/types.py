@@ -1,4 +1,4 @@
-# Copyright 2025 The ingestables Authors.
+# Copyright 2026 The ingestables Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -41,7 +41,7 @@ class Datasets:
 
 
 @dataclasses.dataclass(kw_only=True)
-class TaskInfo(Protocol):
+class TaskInfo(Protocol):  # pyrefly: ignore[bad-class-definition]
 
   task_type: str
   dataset_name: str
@@ -106,14 +106,14 @@ def create_task_info(
   """
   if task_type == "classification":
     return ClassificationTaskInfo(
-        target_key=target_key,
-        target_classes=target_classes,
-        dataset_name=dataset_name,
+        target_key=target_key,  # pyrefly: ignore[bad-argument-type]
+        target_classes=target_classes,  # pyrefly: ignore[bad-argument-type]
+        dataset_name=dataset_name,  # pyrefly: ignore[bad-argument-type]
     )
   elif task_type == "regression":
-    return RegressionTaskInfo(target_key=target_key, dataset_name=dataset_name)
+    return RegressionTaskInfo(target_key=target_key, dataset_name=dataset_name)  # pyrefly: ignore[bad-argument-type]
   elif task_type == "unsupervised":
-    return UnsupervisedTaskInfo(dataset_name=dataset_name)
+    return UnsupervisedTaskInfo(dataset_name=dataset_name)  # pyrefly: ignore[bad-argument-type]
   else:
     raise ValueError(f"unsupported task type: {task_type}")
 

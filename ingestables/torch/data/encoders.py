@@ -1,4 +1,4 @@
-# Copyright 2025 The ingestables Authors.
+# Copyright 2026 The ingestables Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -295,7 +295,7 @@ class Encoder:
     encoded_inputs = {
         "train": PreprocessedInputs(
             feature_type_dict=feature_type_dict,
-            encoded_feature_names=encoded_feature_names,
+            encoded_feature_names=encoded_feature_names,  # pyrefly: ignore[bad-argument-type]
             encoded_targets=encoded_targets["train"],
             raw_numeric=raw_numeric["train"],
             encoded_numeric=encoded_numeric["train"],
@@ -307,7 +307,7 @@ class Encoder:
         ),
         "val": PreprocessedInputs(
             feature_type_dict=feature_type_dict,
-            encoded_feature_names=encoded_feature_names,
+            encoded_feature_names=encoded_feature_names,  # pyrefly: ignore[bad-argument-type]
             encoded_targets=encoded_targets["val"],
             raw_numeric=raw_numeric["val"],
             encoded_numeric=encoded_numeric["val"],
@@ -319,7 +319,7 @@ class Encoder:
         ),
         "test": PreprocessedInputs(
             feature_type_dict=feature_type_dict,
-            encoded_feature_names=encoded_feature_names,
+            encoded_feature_names=encoded_feature_names,  # pyrefly: ignore[bad-argument-type]
             encoded_targets=encoded_targets["test"],
             raw_numeric=raw_numeric["test"],
             encoded_numeric=encoded_numeric["test"],
@@ -461,11 +461,11 @@ class Encoder:
 
     numeric, categorical, string = None, None, None
     if len(feature_type_dict["numeric"]) > 0:  # pylint: disable=g-explicit-length-test
-      numeric = text_encoder(feature_type_dict["numeric"])
+      numeric = text_encoder(feature_type_dict["numeric"])  # pyrefly: ignore[not-callable]
     if len(feature_type_dict["categorical"]) > 0:  # pylint: disable=g-explicit-length-test
-      categorical = text_encoder(feature_type_dict["categorical"])
+      categorical = text_encoder(feature_type_dict["categorical"])  # pyrefly: ignore[not-callable]
     if len(feature_type_dict["string"]) > 0:  # pylint: disable=g-explicit-length-test
-      string = text_encoder(feature_type_dict["string"])
+      string = text_encoder(feature_type_dict["string"])  # pyrefly: ignore[not-callable]
 
     return EncodedFeatureNames(
         categorical=categorical,
@@ -533,19 +533,19 @@ class Encoder:
       )
 
       if self.target_encoding == "llm":
-        target_embs = self.text_encoder(label_encoder.classes_.tolist())
+        target_embs = self.text_encoder(label_encoder.classes_.tolist())  # pyrefly: ignore[not-callable]
         # (# targets, text_emb_dim)
-        encoded_targets["train"] = etree.map(
-            lambda x: target_embs[x, :], encoded_targets["train"]
+        encoded_targets["train"] = etree.map(  # pyrefly: ignore[unsupported-operation]
+            lambda x: target_embs[x, :], encoded_targets["train"]  # pyrefly: ignore[bad-index]
         )
-        encoded_targets["val"] = etree.map(
-            lambda x: target_embs[x, :], encoded_targets["val"]
+        encoded_targets["val"] = etree.map(  # pyrefly: ignore[unsupported-operation]
+            lambda x: target_embs[x, :], encoded_targets["val"]  # pyrefly: ignore[bad-index]
         )
-        encoded_targets["test"] = etree.map(
-            lambda x: target_embs[x, :], encoded_targets["test"]
+        encoded_targets["test"] = etree.map(  # pyrefly: ignore[unsupported-operation]
+            lambda x: target_embs[x, :], encoded_targets["test"]  # pyrefly: ignore[bad-index]
         )
 
-    return encoded_targets
+    return encoded_targets  # pyrefly: ignore[bad-return]
 
   def _encode_numeric_features(
       self,
@@ -635,7 +635,7 @@ class Encoder:
           f"Unsupported numeric encoding method: {self.numeric_encoding=}"
       )
 
-    return raw_numeric, encoded_numeric
+    return raw_numeric, encoded_numeric  # pyrefly: ignore[bad-return]
 
   def _encode_categorical_features(
       self,
@@ -691,7 +691,7 @@ class Encoder:
             (n_categorical_features, self.max_num_categories),
         ).long()
         for k in range(n_categorical_features):
-          cat_emb = self.text_encoder(ordinal_encoder.categories_[k].tolist())
+          cat_emb = self.text_encoder(ordinal_encoder.categories_[k].tolist())  # pyrefly: ignore[not-callable]
           pad_width = self.max_num_categories - len(
               ordinal_encoder.categories_[k]
           )
@@ -711,28 +711,28 @@ class Encoder:
           train_vals_encs.append(
               etree.map(
                   lambda i: categorical_value_embeddings[k, i, :],  # pylint: disable=cell-var-from-loop
-                  encoded_categorical_ordinal["train"][:, k],
+                  encoded_categorical_ordinal["train"][:, k],  # pyrefly: ignore[bad-index]
               )
           )
           val_vals_encs.append(
               etree.map(
                   lambda i: categorical_value_embeddings[k, i, :],  # pylint: disable=cell-var-from-loop
-                  encoded_categorical_ordinal["val"][:, k],
+                  encoded_categorical_ordinal["val"][:, k],  # pyrefly: ignore[bad-index]
               )
           )
           test_vals_encs.append(
               etree.map(
                   lambda i: categorical_value_embeddings[k, i, :],  # pylint: disable=cell-var-from-loop
-                  encoded_categorical_ordinal["test"][:, k],
+                  encoded_categorical_ordinal["test"][:, k],  # pyrefly: ignore[bad-index]
               )
           )
-        encoded_categorical["train"] = torch.stack(train_vals_encs, dim=1)
-        encoded_categorical["val"] = torch.stack(val_vals_encs, dim=1)
-        encoded_categorical["test"] = torch.stack(test_vals_encs, dim=1)
+        encoded_categorical["train"] = torch.stack(train_vals_encs, dim=1)  # pyrefly: ignore[unsupported-operation]
+        encoded_categorical["val"] = torch.stack(val_vals_encs, dim=1)  # pyrefly: ignore[unsupported-operation]
+        encoded_categorical["test"] = torch.stack(test_vals_encs, dim=1)  # pyrefly: ignore[unsupported-operation]
 
     elif self.categorical_encoding == "one_hot":
       one_hot_encoder = sklearn_preprocessing.OneHotEncoder(  # pytype: disable=wrong-keyword-args  # sklearn-update
-          sparse=False,
+          sparse=False,  # pyrefly: ignore[unexpected-keyword]
           handle_unknown="ignore",
       )
       encoded_categorical = {
@@ -748,7 +748,7 @@ class Encoder:
           f"Unsupported categorical encoding: {self.categorical_encoding}"
       )
 
-    return (
+    return (  # pyrefly: ignore[bad-return]
         encoded_categorical,
         encoded_categorical_ordinal,
         categorical_value_embeddings,
@@ -793,7 +793,7 @@ class Encoder:
           #   encoded_string[split][i].append(self.text_encoder(batch))
 
           # encoded_string[split][i] = torch.cat(encoded_string[split][i], dim=0)  # pylint: disable=line-too-long
-          encoded_string[split][i] = self.text_encoder(
+          encoded_string[split][i] = self.text_encoder(  # pyrefly: ignore[not-callable]
               raw_string[split][:, i].tolist()
           )
         encoded_string[split] = torch.cat(

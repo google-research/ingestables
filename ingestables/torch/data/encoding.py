@@ -1,4 +1,4 @@
-# Copyright 2025 The ingestables Authors.
+# Copyright 2026 The ingestables Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -67,15 +67,15 @@ def compute_bins(
     - the maximum possible number of bin edges is ``n_bins + 1``.
     - the minimum possible number of bin edges is ``1``.
   """
-  if np.ndim(target_values) != 1:
+  if np.ndim(target_values) != 1:  # pyrefly: ignore[bad-argument-type]
     raise ValueError(
         "target_values must have exactly one dimension, however:"
-        + f" {np.ndim(target_values)=}"
+        + f" {np.ndim(target_values)=}"  # pyrefly: ignore[bad-argument-type]
     )
-  if len(target_values) != len(numeric_feature_values_raw):
+  if len(target_values) != len(numeric_feature_values_raw):  # pyrefly: ignore[bad-argument-type]
     raise ValueError(
         "len(target_values) must be equal to len(X), however:"
-        + f" {len(target_values)=}, {len(numeric_feature_values_raw)=}"
+        + f" {len(target_values)=}, {len(numeric_feature_values_raw)=}"  # pyrefly: ignore[bad-argument-type]
     )
   if target_values is None or task is None:
     raise ValueError(
@@ -97,7 +97,7 @@ def compute_bins(
         n_bins,
         tree_kwargs,
         target_values,
-        task,
+        task,  # pyrefly: ignore[bad-argument-type]
         verbose,
     )
   else:
@@ -287,7 +287,7 @@ def piecewise_linear_encoding(
   left_edges = edges[:, :-1]
   width = edges[:, 1:] - edges[:, :-1]
 
-  bin_counts = torch.sum(
+  bin_counts = torch.sum(  # pyrefly: ignore[no-matching-overload]
       torch.where(
           torch.isnan(edges),
           torch.zeros_like(edges).int(),

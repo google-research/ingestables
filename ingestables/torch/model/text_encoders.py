@@ -1,4 +1,4 @@
-# Copyright 2025 The ingestables Authors.
+# Copyright 2026 The ingestables Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -69,7 +69,7 @@ class HuggingFaceAutoTokenizer:
         tokenizer.
     """
     if isinstance(model_path, str):
-      model_path = epath.Path(model_path)
+      model_path = epath.Path(model_path)  # pyrefly: ignore[bad-assignment]
     self._tokenizer = transformers.AutoTokenizer.from_pretrained(
         model_path, local_files_only=True, use_fast=use_fast
     )
@@ -163,7 +163,7 @@ class HuggingFaceAutoModelEncoder(nn.Module):
     """
     super().__init__()
     if isinstance(model_path, str):
-      model_path = epath.Path(model_path)
+      model_path = epath.Path(model_path)  # pyrefly: ignore[bad-assignment]
 
     model = transformers.AutoModel.from_pretrained(
         model_path, local_files_only=True

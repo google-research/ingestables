@@ -1,4 +1,4 @@
-# Copyright 2025 The ingestables Authors.
+# Copyright 2026 The ingestables Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -63,7 +63,7 @@ def drop_cols_with_missing_values(
   drop_cols_val = set(_drop_cols(data["val"]))
   drop_cols_test = set(_drop_cols(data["test"]))
   drop_cols = drop_cols_train.intersection(drop_cols_val, drop_cols_test)
-  return {k: v.drop(columns=drop_cols) for k, v in data.items()}
+  return {k: v.drop(columns=drop_cols) for k, v in data.items()}  # pyrefly: ignore[no-matching-overload]
 
 
 def drop_cols_with_one_unique_value(
@@ -82,7 +82,7 @@ def drop_cols_with_one_unique_value(
   drop_cols_val = set(_drop_cols(data["val"]))
   drop_cols_test = set(_drop_cols(data["test"]))
   drop_cols = drop_cols_train.intersection(drop_cols_val, drop_cols_test)
-  return {k: v.drop(columns=drop_cols) for k, v in data.items()}
+  return {k: v.drop(columns=drop_cols) for k, v in data.items()}  # pyrefly: ignore[no-matching-overload]
 
 
 def add_noise_to_numeric_features(
@@ -577,15 +577,15 @@ def compute_bins(
     - the maximum possible number of bin edges is ``n_bins + 1``.
     - the minimum possible number of bin edges is ``1``.
   """
-  if np.ndim(target_values) != 1:
+  if np.ndim(target_values) != 1:  # pyrefly: ignore[bad-argument-type]
     raise ValueError(
         "target_values must have exactly one dimension, however:"
-        + f" {np.ndim(target_values)=}"
+        + f" {np.ndim(target_values)=}"  # pyrefly: ignore[bad-argument-type]
     )
-  if len(target_values) != len(numeric_feature_values_raw):
+  if len(target_values) != len(numeric_feature_values_raw):  # pyrefly: ignore[bad-argument-type]
     raise ValueError(
         "len(target_values) must be equal to len(X), however:"
-        + f" {len(target_values)=}, {len(numeric_feature_values_raw)=}"
+        + f" {len(target_values)=}, {len(numeric_feature_values_raw)=}"  # pyrefly: ignore[bad-argument-type]
     )
   if target_values is None or task is None:
     raise ValueError(
@@ -607,7 +607,7 @@ def compute_bins(
         n_bins,
         tree_kwargs,
         target_values,
-        task,
+        task,  # pyrefly: ignore[bad-argument-type]
         verbose,
     )
   else:

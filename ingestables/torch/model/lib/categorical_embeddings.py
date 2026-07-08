@@ -1,4 +1,4 @@
-# Copyright 2025 The ingestables Authors.
+# Copyright 2026 The ingestables Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -132,7 +132,7 @@ class FTTransformerCategoricalEmbeddings(nn.Module):
     self.reset_parameters()
 
   def reset_parameters(self) -> None:
-    d_rsqrt = self.embeddings[0].embedding_dim ** -0.5
+    d_rsqrt = self.embeddings[0].embedding_dim ** -0.5  # pyrefly: ignore[unsupported-operation]
     for m in self.embeddings:
       nn.init.uniform_(m.weight, -d_rsqrt, d_rsqrt)
     if self.bias is not None:

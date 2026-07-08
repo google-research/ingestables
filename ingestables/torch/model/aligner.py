@@ -1,4 +1,4 @@
-# Copyright 2025 The ingestables Authors.
+# Copyright 2026 The ingestables Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -164,10 +164,10 @@ class NumericAligner(nn.Module):
         raise ValueError("Periodic aligner only supports 1D features")
       self.val_align = numlib.PeriodicActEmbeddings(
           d_embedding=z_val_dim,
-          activation_fn=val_activation_fn,
+          activation_fn=val_activation_fn,  # pyrefly: ignore[bad-argument-type]
           bias=val_bias,
-          n_frequencies=n_frequencies,
-          frequency_init_scale=frequency_init_scale,
+          n_frequencies=n_frequencies,  # pyrefly: ignore[bad-argument-type]
+          frequency_init_scale=frequency_init_scale,  # pyrefly: ignore[bad-argument-type]
       )
     elif val_aligner == "identity":
       self.val_align = nn.Identity()

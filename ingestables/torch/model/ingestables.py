@@ -1,4 +1,4 @@
-# Copyright 2025 The ingestables Authors.
+# Copyright 2026 The ingestables Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ ROOT_DIR = "~/ingestables/"
 
 def get_params(
     model: torch.nn.Module, exclude_params: Optional[List[str]] = None
-) -> List[Tuple[str, torch.tensor]]:
+) -> List[Tuple[str, torch.tensor]]:  # pyrefly: ignore[not-a-type]
   """Get the parameters of a model.
 
   Args:
@@ -43,11 +43,11 @@ def get_params(
   """
   if exclude_params is None:
     return list(model.named_parameters())
-  exclude_params = set(exclude_params)
+  exclude_params = set(exclude_params)  # pyrefly: ignore[bad-assignment]
 
   params = []
   for name, param in model.named_parameters():
-    if not any([ename in name for ename in exclude_params]):
+    if not any([ename in name for ename in exclude_params]):  # pyrefly: ignore[not-iterable]
       params.append((name, param))
 
   return params

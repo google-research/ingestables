@@ -1,4 +1,4 @@
-# Copyright 2025 The ingestables Authors.
+# Copyright 2026 The ingestables Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -158,7 +158,7 @@ def full_base_config(
   # TODO(mononito): Move this into a function, but functions can't be used in
   # fiddle configs, easily.
   # Parse z_key_to_val_dim_ratio string into z_key_dim and z_val_dim
-  z_key_to_val_dim_ratio = z_key_to_val_dim_ratio.split(":")
+  z_key_to_val_dim_ratio = z_key_to_val_dim_ratio.split(":")  # pyrefly: ignore[bad-assignment]
   z_key_dim = int(z_key_to_val_dim_ratio[0])
   z_val_dim = int(z_key_to_val_dim_ratio[1])
   z_dim = z_key_dim + z_val_dim
@@ -292,7 +292,7 @@ def full_base_config(
                   "str": str_aligner,
                   "num": num_aligner,
               },
-              kv_combiner=kv_combiners,
+              kv_combiner=kv_combiners,  # pyrefly: ignore[bad-argument-type]
               backbone=t5_transformer.T5EncoderModel(config=backbone_config),
               heads={
                   "cat": head.IngesTablesClassification(
@@ -304,7 +304,7 @@ def full_base_config(
                       z_dim=backbone_embedding_dim,
                   ),
               },
-              special_tokens=special_tokens,
+              special_tokens=special_tokens,  # pyrefly: ignore[bad-argument-type]
           ),
           ingestables_checkpoint_name_and_path=ingestables_checkpoint_name_and_path,
           pretrained_backbone_name_and_path=ROOT_DIR
@@ -400,7 +400,7 @@ def add_pretraining_pipeline_modules(
     pipeline_module.dataset_name = dataset_name
     pipeline_module.encoder.text_encoder = text_encoder
     if subsample_dataset and subsampling_type == "examples":
-      pipeline_module.sampler = sampler
+      pipeline_module.sampler = sampler  # pyrefly: ignore[bad-assignment]
     if remove_feature_information:
       pipeline_module.encoder.feature_name_encoding = "ones"
     pipeline_module.splitter = scenario_generators.Splitter(

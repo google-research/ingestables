@@ -1,4 +1,4 @@
-# Copyright 2025 The ingestables Authors.
+# Copyright 2026 The ingestables Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -98,7 +98,7 @@ def infer_feature_types(
   feature_type_dict = {"categorical": [], "numeric": [], "string": []}
   for col, type_ in feature_types_.items():
     if feature_types_[col] == "object":
-      if num_unique_values[col] <= max_num_categories:
+      if num_unique_values[col] <= max_num_categories:  # pyrefly: ignore[unsupported-operation]
         feature_to_type[col] = "categorical"
         feature_type_dict["categorical"].append(col)
       else:
@@ -160,21 +160,21 @@ def get_feature_descriptions(
     if feat_type == "string":
       string_lengths = [len(i) for i in data[col] if i is not None]
       feature_descriptions[col] = base.StringFeatureDescription(
-          feature_name=col,
+          feature_name=col,  # pyrefly: ignore[unexpected-keyword]
           max_length=max(string_lengths),
           min_length=min(string_lengths),
           example_strings=get_examples(data[col], num_examples, random_state),
       )
     elif feat_type == "categorical":
       feature_descriptions[col] = base.CategoricalFeatureDescription(
-          feature_name=col,
+          feature_name=col,  # pyrefly: ignore[unexpected-keyword]
           num_categories=len(unique_values[col]),
           categories=unique_values[col],
       )
     elif feat_type == "numeric":
       stats = data[col].describe().to_dict()
       feature_descriptions[col] = base.NumericFeatureDescription(
-          feature_name=col,
+          feature_name=col,  # pyrefly: ignore[unexpected-keyword]
           max=stats["max"],
           min=stats["min"],
           mean=stats["mean"],

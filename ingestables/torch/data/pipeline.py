@@ -1,4 +1,4 @@
-# Copyright 2025 The ingestables Authors.
+# Copyright 2026 The ingestables Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -133,7 +133,7 @@ class IndexedDataset(data.Dataset):
     Returns:
       The number of data points in the dataset.
     """
-    return len(self.inputs.encoded_targets)
+    return len(self.inputs.encoded_targets)  # pyrefly: ignore[bad-argument-type]
 
 
 @dataclasses.dataclass

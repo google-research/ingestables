@@ -1,4 +1,4 @@
-# Copyright 2025 The ingestables Authors.
+# Copyright 2026 The ingestables Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -89,11 +89,11 @@ class InMemoryMetricsStore(MetricsStore):
       metrics: dict[str, float],
   ):
     """Writes tensorboard summary."""
-    step = self._metrics[step]
-    if key not in step:
-      step[key] = metrics
+    step = self._metrics[step]  # pyrefly: ignore[bad-assignment]
+    if key not in step:  # pyrefly: ignore[not-iterable]
+      step[key] = metrics  # pyrefly: ignore[unsupported-operation]
     else:
-      step[key].update(metrics)
+      step[key].update(metrics)  # pyrefly: ignore[bad-index]
 
 
 class MetricsWriter:

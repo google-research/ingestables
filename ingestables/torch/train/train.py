@@ -1,4 +1,4 @@
-# Copyright 2025 The ingestables Authors.
+# Copyright 2026 The ingestables Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -134,11 +134,11 @@ class Trainer:
       # checkpoint directory.
       # TODO(mononito): Change name of the argument to
       # ingestables_checkpoint_dir_path.
-      ingestables_checkpoint_name_and_path = self._find_latest_checkpoint_path(
+      ingestables_checkpoint_name_and_path = self._find_latest_checkpoint_path(  # pyrefly: ignore[bad-assignment]
           ingestables_checkpoint_name_and_path
       )
       model.load_state_dict(
-          torch.load(ingestables_checkpoint_name_and_path, weights_only=True)
+          torch.load(ingestables_checkpoint_name_and_path, weights_only=True)  # pyrefly: ignore[bad-argument-type]
       )
       logging.info(
           "Loaded pre-trained weights from an IngesTables checkpoint: %s",
@@ -187,7 +187,7 @@ class Trainer:
     if gpu_ok:
       model.compile(dynamic=False, disable=not compile_model)
     if self._world_size > 1:
-      model = DDP(
+      model = DDP(  # pyrefly: ignore[bad-assignment]
           model,
           device_ids=[local_rank],
           output_device=local_rank,
@@ -446,7 +446,7 @@ class Trainer:
           missing=num_missing,
       )
 
-      num_y_vals = data_.raw_numeric[:batch_size].unsqueeze(-1).float()
+      num_y_vals = data_.raw_numeric[:batch_size].unsqueeze(-1).float()  # pyrefly: ignore[unsupported-operation]
       num_loss_weights = torch.ones_like(num_y_vals).float()
       num_training_inputs = types.IngesTablesTrainingInputs(
           y_vals=num_y_vals, loss_weights=num_loss_weights
@@ -599,9 +599,9 @@ class Trainer:
     # Mask training and inference inputs
     inference_inputs, training_inputs = self._mask(
         task_info,
-        self._train_masking_strategy,
-        inference_inputs=inference_inputs,
-        training_inputs=training_inputs,
+        self._train_masking_strategy,  # pyrefly: ignore[bad-argument-type]
+        inference_inputs=inference_inputs,  # pyrefly: ignore[bad-argument-type]
+        training_inputs=training_inputs,  # pyrefly: ignore[bad-argument-type]
     )
 
     inference_inputs, training_inputs = utils.move_to_device(
@@ -620,7 +620,7 @@ class Trainer:
     ):
       logits = self._model(inference_inputs)
 
-    losses_dict = self._model_module.loss(logits, training_inputs)
+    losses_dict = self._model_module.loss(logits, training_inputs)  # pyrefly: ignore[bad-argument-type]
 
     if not losses_dict:
       return
@@ -671,8 +671,8 @@ class Trainer:
         inference_inputs, training_inputs = self._mask(
             task_info,
             self._eval_masking_strategy,
-            inference_inputs=inference_inputs,
-            training_inputs=training_inputs,
+            inference_inputs=inference_inputs,  # pyrefly: ignore[bad-argument-type]
+            training_inputs=training_inputs,  # pyrefly: ignore[bad-argument-type]
         )
 
         inference_inputs, training_inputs = utils.move_to_device(
@@ -699,7 +699,7 @@ class Trainer:
         for head_key in logits_dict.keys():
           if head_key not in batched_training_inputs:
             batched_training_inputs[head_key] = []
-          batched_training_inputs[head_key].append(training_inputs[head_key])
+          batched_training_inputs[head_key].append(training_inputs[head_key])  # pyrefly: ignore[unsupported-operation]
 
       # Collate all the batches into a single tensor.
       batched_logits_dict = {
