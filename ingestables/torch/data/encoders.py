@@ -608,7 +608,7 @@ class Encoder:
           lambda x: torch.from_numpy(x).float().unsqueeze(-1), encoded_numeric
       )
     elif self.numeric_encoding == "soft_one_hot":
-      for k, v in raw_numeric.items():  # pylint: disable=attribute-error
+      for k, v in raw_numeric.items():  # pylint: disable=attribute-error  # pyrefly: ignore[missing-attribute]
         encoded_vals = []
         dataloader = make_dataloader(v)
         for x in tqdm.tqdm(
@@ -620,7 +620,7 @@ class Encoder:
         encoded_numeric[k] = torch.cat(encoded_vals, dim=0)
 
     elif self.numeric_encoding == "piecewise_linear":
-      for k, v in raw_numeric.items():  # pylint: disable=attribute-error
+      for k, v in raw_numeric.items():  # pylint: disable=attribute-error  # pyrefly: ignore[missing-attribute]
         encoded_vals = []
         dataloader = make_dataloader(v)
         for x in tqdm.tqdm(
