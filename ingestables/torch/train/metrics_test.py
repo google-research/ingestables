@@ -15,6 +15,7 @@
 import dataclasses
 
 from absl.testing import absltest
+from absl.testing import parameterized
 from ingestables.torch import types
 from ingestables.torch.train import metrics as metrics_lib
 
@@ -68,7 +69,7 @@ class InMemoryMetricsStoreTest(absltest.TestCase):
     )
 
 
-class MetricsWriterTest(absltest.TestCase):
+class MetricsWriterTest(parameterized.TestCase):
 
   def test_write_metrics(self):
     store = metrics_lib.InMemoryMetricsStore()
@@ -94,6 +95,51 @@ class MetricsWriterTest(absltest.TestCase):
     writer.write_metric(step, key, name, value)
 
     self.assertEqual(store.metrics, {step: {key: {name: value}}})
+
+  @parameterized.product(
+      dataset_type=["train", "val", "test"],
+      metric_case=[
+          (
+              types.ClassificationMetrics(accuracy=0.0, f1_score=0.0),
+              {"accuracy": 0.0, "f1_score": 0.0},
+          ),
+          (
+              types.RegressionMetrics(
+                  mean_squared_error=0.0,
+                  root_mean_squared_error=0.0,
+                  r_squared=-0.5,
+              ),
+              {
+                  "mean_squared_error": 0.0,
+                  "root_mean_squared_error": 0.0,
+                  "r_squared": -0.5,
+              },
+          ),
+      ],
+  )
+  def test_write_model_metrics_preserves_zero(self, dataset_type, metric_case):
+    model_metrics, expected = metric_case
+    store = metrics_lib.InMemoryMetricsStore()
+    writer = metrics_lib.MetricsWriter(store)
+    writer.write_model_metrics(2, dataset_type, "datasetA", model_metrics)
+    self.assertEqual(
+        store.metrics[2][("datasetA", model_metrics.head_key)],
+        {f"{dataset_type}_{name}": value for name, value in expected.items()},
+    )
+
+  def test_zero_overwrites_previous_model_metric(self):
+    store = metrics_lib.InMemoryMetricsStore()
+    writer = metrics_lib.MetricsWriter(store)
+    for value in (0.5, 0.0):
+      writer.write_model_metrics(
+          2,
+          "test",
+          "datasetA",
+          types.RegressionMetrics(mean_squared_error=value),
+      )
+    self.assertEqual(
+        store.metric(2, ("datasetA", "num"), "test_mean_squared_error"), 0.0
+    )
 
   def test_write_model_metrics(self):
     store = metrics_lib.InMemoryMetricsStore()
