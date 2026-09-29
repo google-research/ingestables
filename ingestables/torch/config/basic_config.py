@@ -478,7 +478,7 @@ def one_cycle_lr():
   return functools.partial(
       torch.optim.lr_scheduler.OneCycleLR,
       max_lr=1e-4,  # Maximum learning rate
-      total_steps=1e-5,  #  The total number of steps in the cycle.
+      total_steps=1e-5,  #  The total number of steps in the cycle.  # pyrefly: ignore[bad-argument-type]
       last_epoch=-1,  # Index of the last epoch
       anneal_strategy="cos",  # Annealing strategy, one of "cos" and "linear"
       pct_start=0.3,  # The percentage of the cycle spent increasing the LR
