@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from absl.testing import absltest
+from absl.testing import parameterized
 from ingestables.torch import types
 from ingestables.torch.model import head
 import torch
@@ -362,6 +363,90 @@ class RegressionTest(absltest.TestCase):
     )  # shape: [4, 2, 1]
 
     self.assertEqual(logits.shape, (4, 2, 1))
+
+
+class ClassificationLossWeightsTest(parameterized.TestCase):
+
+  @parameterized.named_parameters(
+      ("one_feature_masked", 2, 1, [1.0, 0.0]),
+      ("one_feature_fractional", 3, 1, [0.25, 0.0, 1.0]),
+      ("one_feature_uniform", 3, 1, [1.0, 1.0, 1.0]),
+      ("one_feature_zero", 3, 1, [0.0, 0.0, 0.0]),
+      ("one_sample", 1, 3, [1.0, 0.0, 0.25]),
+      ("one_sample_one_feature", 1, 1, [0.25]),
+      ("multiple_features", 2, 3, [1.0, 0.0, 0.5, 0.0, 0.25, 1.0]),
+  )
+  def test_loss_and_gradients_match_per_example_weights(
+      self, batch_size, num_features, weights
+  ):
+    logits = (
+        torch.linspace(
+            -2.0, 3.0, batch_size * num_features * 3, dtype=torch.float64
+        )
+        .reshape(batch_size, num_features, 3)
+        .requires_grad_()
+    )
+    targets = (
+        torch.arange(batch_size * num_features).reshape(
+            batch_size, num_features, 1
+        )
+        % 3
+    )
+    loss_weights = torch.tensor(weights, dtype=logits.dtype).reshape(
+        batch_size, num_features, 1
+    )
+    inputs = types.IngesTablesTrainingInputs(
+        y_vals=targets, loss_weights=loss_weights
+    )
+    classifier = head.IngesTablesClassification(
+        IdentityAligner(), IdentityKvCombiner(), max_num_classes=3
+    )
+
+    actual = classifier.loss(logits, inputs)
+    reference_logits = logits.detach().clone().requires_grad_()
+    individual = torch.nn.functional.cross_entropy(
+        reference_logits.reshape(-1, 3), targets.reshape(-1), reduction="none"
+    ).reshape(batch_size, num_features)
+    expected = (individual * loss_weights[..., 0]).mean()
+
+    torch.testing.assert_close(actual, expected)
+    actual_grad = torch.autograd.grad(actual, logits)[0]
+    expected_grad = torch.autograd.grad(expected, reference_logits)[0]
+    torch.testing.assert_close(actual_grad, expected_grad)
+    self.assertEqual(actual.shape, torch.Size([]))
+    torch.testing.assert_close(
+        inputs.loss_weights, loss_weights, rtol=0, atol=0
+    )
+
+  def test_zero_weight_example_is_unchanged_by_optimizer_step(self):
+    embeddings = nn.Parameter(
+        torch.tensor([[[0.0, 0.0, 0.0]], [[0.0, 4.0, 1.0]]])
+    )
+    before = embeddings.detach().clone()
+    values = torch.eye(3).reshape(1, 1, 3, 3).expand(2, 1, 3, 3)
+    inputs = types.IngesTablesInferenceInputs(
+        x_keys=torch.zeros(2, 1, 3),
+        x_vals=values,
+        x_vals_all=values,
+        padding=torch.ones(2, 1, 3, dtype=torch.bool),
+        mask=torch.ones(2, 1, 1, dtype=torch.bool),
+        missing=torch.zeros(2, 1, 1, dtype=torch.bool),
+    )
+    training_inputs = types.IngesTablesTrainingInputs(
+        y_vals=torch.zeros(2, 1, 1, dtype=torch.long),
+        loss_weights=torch.tensor([[[1.0]], [[0.0]]]),
+    )
+    classifier = head.IngesTablesClassification(
+        IdentityAligner(), IdentityKvCombiner(), max_num_classes=3
+    )
+    optimizer = torch.optim.SGD([embeddings], lr=0.1)
+    classifier.loss(classifier(embeddings, inputs), training_inputs).backward()
+    torch.testing.assert_close(
+        embeddings.grad[1], torch.zeros_like(embeddings[1])
+    )
+    optimizer.step()
+    torch.testing.assert_close(embeddings[1], before[1], rtol=0, atol=0)
+    self.assertFalse(torch.equal(embeddings[0], before[0]))
 
 
 if __name__ == "__main__":
