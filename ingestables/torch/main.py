@@ -34,7 +34,7 @@ def main(argv):
       "\n\n########## BEGIN FIDDLE CONFIG ##########\n"
       "%s"
       "\n########## END FIDDLE CONFIG ##########\n\n",
-      printing.as_str_flattened(cfg),  # pytype: disable=attribute-error
+      printing.as_str_flattened(cfg),
   )
 
   tfl: tabular_foundation_lab.TablularFoundationLab = fdl.build(cfg)

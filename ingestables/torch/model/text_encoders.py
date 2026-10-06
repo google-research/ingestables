@@ -95,7 +95,7 @@ class HuggingFaceAutoTokenizer:
     if not batch:
       return {}
     if all(isinstance(b, bytes) for b in batch):
-      batch = [b.decode("utf-8") for b in batch]  # pytype: disable=attribute-error
+      batch = [b.decode("utf-8") for b in batch]
 
     # Strip white character space
     batch = [str(s).strip() for s in batch]

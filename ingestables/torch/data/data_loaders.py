@@ -921,6 +921,7 @@ def load_us_airbnb() -> Tuple[pd.DataFrame, types.TaskInfo]:
     # Format column values
     repr_str = {None: "No name or description"}
     df["name"] = df["name"].replace(to_replace=repr_str)
+    # pyrefly: ignore[missing-attribute]
     repr_str = {np.NaN: 0}  # Replace missing reviews per month to 0
     df["reviews_per_month"] = df["reviews_per_month"].replace(
         to_replace=repr_str

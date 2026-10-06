@@ -160,21 +160,21 @@ def get_feature_descriptions(
     if feat_type == "string":
       string_lengths = [len(i) for i in data[col] if i is not None]
       feature_descriptions[col] = base.StringFeatureDescription(
-          feature_name=col,  # pyrefly: ignore[unexpected-keyword]
+          feature_name=col,
           max_length=max(string_lengths),
           min_length=min(string_lengths),
           example_strings=get_examples(data[col], num_examples, random_state),
       )
     elif feat_type == "categorical":
       feature_descriptions[col] = base.CategoricalFeatureDescription(
-          feature_name=col,  # pyrefly: ignore[unexpected-keyword]
+          feature_name=col,
           num_categories=len(unique_values[col]),
           categories=unique_values[col],
       )
     elif feat_type == "numeric":
       stats = data[col].describe().to_dict()
       feature_descriptions[col] = base.NumericFeatureDescription(
-          feature_name=col,  # pyrefly: ignore[unexpected-keyword]
+          feature_name=col,
           max=stats["max"],
           min=stats["min"],
           mean=stats["mean"],
