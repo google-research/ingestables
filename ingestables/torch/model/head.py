@@ -121,7 +121,7 @@ class IngesTablesClassification(nn.Module):
     y_vals = training_inputs.y_vals  # [batch, num_cat_feats, 1]
     y_vals = y_vals.squeeze(-1)  # [batch, num_cat_feats]  # pylint: disable=attribute-error
     loss_weights = training_inputs.loss_weights  # [batch, num_cat_feats, 1]
-    loss_weights = loss_weights.squeeze()  # [batch, num_cat_feats]  # pylint: disable=attribute-error
+    loss_weights = loss_weights.squeeze(-1)  # [batch, num_cat_feats]  # pylint: disable=attribute-error
     loss = _cross_entropy_fn(
         logits,  # [batch, num_cat_feats, num_classes]
         y_vals,  # [batch, num_cat_feats]
