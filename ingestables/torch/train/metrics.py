@@ -134,6 +134,6 @@ class MetricsWriter:
     metrics = {
         f"{dataset_type}_{k}": v
         for k, v in metrics_type.metrics_dict().items()
-        if v
+        if v is not None
     }
     self.write_metrics(step, (dataset_key, metrics_type.head_key), metrics)
